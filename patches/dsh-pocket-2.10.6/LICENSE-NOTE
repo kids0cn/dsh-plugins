@@ -1,0 +1,4 @@
+dsh-pocket (npm) is licensed under GPL-2.0.
+This directory contains a unified diff against dsh-pocket@2.10.6 — a work based on
+that program — and is therefore distributed under GPL-2.0 as well.
+The original package is NOT redistributed here; only the patch is.

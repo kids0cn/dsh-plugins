@@ -1,0 +1,75 @@
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -11,7 +11,7 @@
+ 
+ import { fileURLToPath } from 'node:url';
+ import { spawn } from 'node:child_process';
+-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
++import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+ import { writeFile, readFile, mkdir, rm } from 'node:fs/promises';
+ import { join, dirname } from 'node:path';
+ import { homedir } from 'node:os';
+@@ -47,9 +47,35 @@
+ // 公网与局域网**分开**：各自 8 位，存本机 $DSH_HOME/dsh-pocket/。
+ // 公网密码（token）：默认每次开启公网时轮换（旧链接作废）；**用户自定义后不再轮换**；
+ // 局域网密码（token-lan）：默认手动刷新（设置页按钮）；自定义后刷新会换回随机值。
+-// 会话保持（issue #33）：登录 cookie 绑定进程级 sessionKey（见 apply）——
+-// dsh web 重启/更新后 sessionKey 变化 → 手机需重新输入。
++// 会话保持（issue #33）：登录 cookie 绑定 sessionKey（见 loadOrCreateSessionKey）——
++// **2026-10-04 改为落盘复用**（用户拍板「重启后不重验」）：sessionKey 存
++// $DSH_HOME/dsh-pocket/session.key（600），dsh web 重启后 cookie 依旧有效 → 不再重输 PIN。
+ // 密码规则：8 位英文字母（大小写）或数字（自动生成的为 8 位数字，自定义可为字母+数字）。
++
++/**
++ * sessionKey 落盘复用（2026-10-04 用户拍板「重启后不重验」）。
++ * issue #33 原设计是**进程级随机** → 每次 dsh web 重启旧 cookie 必失配 → 公网/局域网
++ * 登录页强制重输 PIN；自动刷新（重启按钮的看门狗）后落在登录页 = 仍需人操作。
++ * 改法：持久化到 `$DSH_HOME/dsh-pocket/session.key`（chmod 600）——
++ * 仍与 PIN 绑定（换 PIN 即全部失效）；泄漏面 = 能读本用户 home 的进程（等同账号已沦陷）。
++ * 读/写失败（只读环境）→ 退化为进程级随机，行为同原版。
++ * 导出仅为可测性。
++ */
++export function loadOrCreateSessionKey() {
++  const file = join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'dsh-pocket', 'session.key');
++  try {
++    const existing = readFileSync(file, 'utf8').trim();
++    if (/^[0-9a-f]{32}$/.test(existing)) return existing;
++  } catch { /* 无文件 → 生成 */ }
++  const key = randomBytes(16).toString('hex');
++  try {
++    mkdirSync(dirname(file), { recursive: true });
++    writeFileSync(file, `${key}\n`, { mode: 0o600 });
++    chmodSync(file, 0o600);   // 文件已存在时 writeFileSync 不会改权限，强制回 600
++  } catch { /* 只读环境 → 本进程内退化为随机（原行为） */ }
++  return key;
++}
++
+ const PIN_RE = /^[a-zA-Z0-9]{8}$/;
+ function writePinToFile(p, fresh) {
+   try {
+@@ -287,7 +313,11 @@
+     // 端口（issue #70）：插件模式优先级 settings.proxyPort > cordis patch config.port > 3081。
+     // 3081 被占时 createPocketService 内部 EADDRINUSE 抛错，按 DSH 插件启动失败处理（用户改端口重启即可）。
+     port: internals.port ?? config.port ?? (proxyPort() || 3081),
+-    home: internals.home,
++    // home 兜底（2026-10-04 用户授权的本地补丁）：apply(ctx, config, internals={}) 运行时
++    // internals.home 恒为 undefined → service 里 autoStatePath=null → tunnel-auto.json 的
++    // 写(marker)与 restoreTunnelIfNeeded 读取整条链是死码 → 重启后公网隧道永不自动恢复。
++    // 兜底到 $DSH_HOME（与本文件 token/lan 路径的取法一致）。上游可提 issue。
++    home: internals.home ?? process.env.DSH_HOME ?? join(homedir(), '.dsh'),
+     internals,
+     getLanIpOverride: () => lanIpOverride(),
+     getLanEnabled: () => lanEnabled(),
+@@ -309,9 +339,9 @@
+     // 公网的判定是 fail closed：除了 loopback/私网 Host，一切陌生域名（含自建
+     // 命名隧道的固定域名）都按公网处理、强制公网密码。
+     auth: {
+-      // sessionKey：进程级随机密钥——登录 cookie 绑定它（会话保持，issue #33）：
+-      // dsh web 重启/更新后 sessionKey 变化 → 手机需重新输入
+-      sessionKey: randomBytes(16).toString('hex'),
++      // sessionKey（issue #33；2026-10-04 起**落盘复用**）——见 loadOrCreateSessionKey：
++      // 重启后 cookie 依旧有效 → 不再要求重新输 PIN（换 PIN 仍会全失效）
++      sessionKey: loadOrCreateSessionKey(),
+       getToken: (host) => tokenForHost(host),
+       isProtected: (host) => {
+         if (isLanOverrideHost(host)) return lanAuthEnabled();

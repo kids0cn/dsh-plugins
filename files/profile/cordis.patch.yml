@@ -1,0 +1,71 @@
+# Your patch layer for this dsh profile, applied after every bundle layer:
+# a top-level YAML array of loader patch entries (id-targeted config
+# overrides, disables, and insert lists; `!!js` expressions allowed).
+- id: ui-settings-general
+  name: "@deepseek-ai/dsh-client-ui-settings-general"
+  config:
+    welcomeNoticeVersion: 2026-09-28.1
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers: {}
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: mimo
+    model: mimo-v2.6-flash
+
+# Claude Code hook 桥接：复用 ~/.claude/settings.json 的 hooks（只读不改）
+# - SessionStart → hermes-context.js（注入共享记忆索引）
+# - PostToolUse Write|Edit → post-edit-commit.sh（只 git add 不 commit）
+# - Stop → stop-commit.sh（会话结束兜底提交）
+# 需要 shell（bash-sandbox 顶层提供）+ sessionProjections（session-projection 顶层提供）
+- insert:
+    - id: hooks-claude-code
+      name: '@deepseek-ai/dsh-hooks-claude-code'
+      config:
+        configPath: /home/developer/.claude/settings.json
+- id: ui-theme
+  name: "@deepseek-ai/dsh-client-ui-theme"
+  config:
+    fontSize: 14
+- id: ui-chat
+  name: "@deepseek-ai/dsh-client-ui-chat"
+  config:
+    transcriptView: standard
+
+# llm-mimo（MiMo 原生适配器）：复用已存的凭据 ref（本机无 MIMO_NORMAL_API_KEY）。
+# 端点 = token-plan-cn 网关（api.xiaomimimo.com 对该 key 返 401，实测于 2026-10-04）。
+# 目录 = GET /v1/models 中的 4 个聊天模型；模态按裸探针实锤勾选：
+#   v2.6-flash/pro、v2.5 → image/audio/video 全通；v2.5-pro → 纯文本（三模态 404）。
+# asr/tts/voiceclone/voicedesign 走专用接口，不进 chat 目录。
+- id: llm-mimo
+  name: "@mimo-codex/dsh-llm-mimo"
+  config:
+    apiKeyEnv: XIAOMI_TOKEN_PLAN_CN_API_KEY
+    baseURL: https://token-plan-cn.xiaomimimo.com/v1
+    modelsJson: '[{"id":"mimo-v2.6-flash","name":"MiMo V2.6
+      Flash","inputModalities":["text","image","audio","video"]},{"id":"mimo-v2.6-pro","name":"MiMo
+      V2.6
+      Pro","inputModalities":["text","image","audio","video"]},{"id":"mimo-v2.5","name":"MiMo
+      V2.5","inputModalities":["text","image","audio","video"]},{"id":"mimo-v2.5-pro","name":"MiMo
+      V2.5 Pro","inputModalities":["text"]}]'
+- id: permission
+  name: "@deepseek-ai/dsh-permission-presets"
+  config:
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: ask
+      workspace-write:
+        sandbox: workspace-write
+        approval: ask
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never
+    defaultPreset: danger-full-access
+- id: better-sidebar
+  name: dsh-better-sidebar
+  config:
+    titleBarScheme: web
+    titleBarCompat: false

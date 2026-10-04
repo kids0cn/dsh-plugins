@@ -1,0 +1,12 @@
+# 本机敏感文件（绝不入库）
+session.key
+token
+token-lan
+*.env
+web.env
+.credentials.yaml
+
+# 依赖/产物
+node_modules/
+*.log
+.DS_Store

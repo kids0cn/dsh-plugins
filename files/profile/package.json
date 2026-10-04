@@ -1,0 +1,27 @@
+{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dependencies": {
+    "@local/dsh-monitor": "link:/home/developer/test_mimo/dsh-monitor-bundle",
+    "@local/sidebar-auto-collapse": "link:/home/developer/test_mimo/sidebar-auto-collapse",
+    "@mimo-codex/dsh-llm-mimo": "github:dalizi2333/dsh-llm-mimo",
+    "dsh-better-sidebar": "0.24.1",
+    "dsh-pocket": "^2.10.6",
+    "dsh-web-restart": "github:1123762794/dsh-web-restart"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "@deepseek-ai/dsh-experimental-auto-review",
+        "dsh-pocket",
+        "@mimo-codex/dsh-llm-mimo",
+        "dsh-web-restart",
+        "@local/dsh-monitor",
+        "dsh-better-sidebar",
+        "@local/sidebar-auto-collapse"
+      ]
+    }
+  }
+}

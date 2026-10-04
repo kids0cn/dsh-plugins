@@ -1,0 +1,4 @@
+- insert:
+    - id: dsh-monitor
+      name: '@local/dsh-monitor'
+      config: {}

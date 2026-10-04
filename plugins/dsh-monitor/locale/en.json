@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "System Monitor",
+    "description": "Sidebar panel showing background jobs, system usage, top processes, and Docker containers."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Auto-collapse Sidebar",
+    "description": "Adds a General setting that collapses the left sidebar automatically and expands it while the pointer is over it."
+  }
+}
