@@ -8,8 +8,6 @@ window.__ModuleLoader__.load({
     const NS = 'sidebarAutoCollapse';
     /** Browser-side preference key; the shell keeps no sidebar state of its own. */
     const STORAGE_KEY = 'dsh.sidebar.autoCollapse';
-    /** Long enough for the shell's 150ms wide-content settle plus one frame budget. */
-    const SETTLE_MS = 400;
     /** Hover-in expands immediately. */
     const EXPAND_DELAY_MS = 0;
     /** Hover-out waits, so a pointer crossing the edge does not flicker the column. */
@@ -53,7 +51,7 @@ window.__ModuleLoader__.load({
     * @returns the store the settings row subscribes to.
     */
     function createSnapshotStore(enabled) {
-      let snapshot = { enabled };
+      let snapshot = { enabled, inside: false, wide: false, note: 'init' };
       const listeners = new Set();
       return {
         getSnapshot: () => snapshot,
@@ -63,9 +61,16 @@ window.__ModuleLoader__.load({
             listeners.delete(listener);
           };
         },
-        publish(next) {
-          if (Object.is(snapshot.enabled, next)) return;
-          snapshot = { enabled: next };
+        update(patch) {
+          let changed = false;
+          for (const key of Object.keys(patch)) {
+            if (!Object.is(snapshot[key], patch[key])) {
+              changed = true;
+              break;
+            }
+          }
+          if (!changed) return;
+          snapshot = { ...snapshot, ...patch };
           listeners.forEach((listener) => listener());
         }
       };
@@ -74,8 +79,10 @@ window.__ModuleLoader__.load({
     /**
     * Own the preference and the hover controller: the shell only exposes
     * `ctx.layout.toggleSidebar()`, so this reconciles a desired state against
-    * the column state the sidebar foot reports, never toggling inside the
-    * shell's settle window.
+    * the state the column was last *seen* in. The target is optimistic right
+    * after our own toggle, which is what keeps a reversal instant: the foot's
+    * `wide` flag lags the collapse by the shell's 150ms settle, and waiting on
+    * it would put a dead window in front of every hover.
     * @param ctx - client root context.
     * @returns the controller face used by both registrations and its disposer.
     */
@@ -86,25 +93,27 @@ window.__ModuleLoader__.load({
       let desired = enabled ? false : null;
       /** The `wide` owner prop the sidebar foot hands its entries. */
       let wide = false;
+      /** Where the column is or is heading: the last observed `wide`, or our own toggle's target. */
+      let target = false;
       /** Whether the pointer is over the sidebar column. */
       let inside = false;
       /** Our footer anchor, the identity marker for column containment. */
       let anchor = null;
-      let settleUntil = 0;
       let timer = null;
       let fireAt = Number.POSITIVE_INFINITY;
 
       function run() {
-        if (!enabled || desired === null) return;
-        const now = Date.now();
-        if (now < settleUntil) {
-          schedule(settleUntil - now);
+        if (!enabled || desired === null) {
+          store.update({ note: `run:skip enabled=${String(enabled)} desired=${String(desired)}` });
           return;
         }
-        if (wide === desired) return;
-        settleUntil = now + SETTLE_MS;
+        if (target === desired) {
+          store.update({ note: `run:match target=${String(target)}` });
+          return;
+        }
+        store.update({ note: `run:toggle ${String(target)}→${String(desired)}` });
+        target = desired;
         ctx.layout.toggleSidebar();
-        schedule(SETTLE_MS + 40);
       }
 
       /** Arm the earliest deadline; later requests never postpone an armed one. */
@@ -123,22 +132,25 @@ window.__ModuleLoader__.load({
       }
 
       function setInside(next) {
-        if (inside === next) return;
+        const same = inside === next;
         inside = next;
+        store.update({
+          inside: next,
+          note: same ? `inside:unchanged ${String(next)}` : `inside→${String(next)}`
+        });
         if (!enabled) return;
         desired = next;
         schedule(next ? EXPAND_DELAY_MS : COLLAPSE_DELAY_MS);
       }
 
       function onPointerOver(event) {
-        if (!enabled) return;
+        if (!enabled) {
+          store.update({ note: 'pointer:disabled' });
+          return;
+        }
         const target = event.target;
         if (!(target instanceof Element)) return;
-        let next = insideColumn(target, anchor);
-        if (!next && anchor !== null && anchor.isConnected) {
-          next = event.clientX <= anchor.getBoundingClientRect().right + EDGE_TOLERANCE_PX;
-        }
-        setInside(next);
+        setInside(pointerInside(event, anchor));
       }
 
       document.addEventListener('pointerover', onPointerOver, true);
@@ -149,13 +161,15 @@ window.__ModuleLoader__.load({
           if (next === enabled) return;
           enabled = next;
           desired = next ? false : null;
-          store.publish(next);
+          store.update({ enabled: next, note: `enabled→${String(next)}` });
           writeStored(next);
           if (next) schedule(0);
         },
         setWide(next) {
           if (wide === next) return;
           wide = next;
+          target = next;
+          store.update({ wide: next, note: `wide→${String(next)}` });
           if (enabled) schedule(0);
         },
         setAnchor(element) {
@@ -170,20 +184,27 @@ window.__ModuleLoader__.load({
     }
 
     /**
-    * Walk up from the pointer target to the first ancestor that also contains
-    * our sidebar anchor: that ancestor is the column itself. Reaching the
-    * document body first means the pointer is elsewhere (a portalled menu over
-    * the column is caught by the caller's x-range fallback instead).
-    * @param target - the pointerover target.
-    * @param anchor - the anchor rendered inside the sidebar column.
-    * @returns whether the pointer is over the sidebar column.
+    * Whether the pointer is over the sidebar column. The column is full-height
+    * and pinned to the frame's left edge, so the anchor's horizontal extent IS
+    * the column's hit area. A containment walk cannot decide this: the frame is
+    * an ancestor of both the column and the centre, so every centre target
+    * would report "inside" and the column would never collapse again. A modal
+    * layered over the left edge is not a hover either.
+    * @param event - the pointerover event.
+    * @param anchor - the anchor rendered at the sidebar foot.
+    * @returns whether the pointer counts as over the sidebar.
     */
-    function insideColumn(target, anchor) {
+    function pointerInside(event, anchor) {
       if (anchor === null || !anchor.isConnected) return false;
+      if (insideModal(event.target)) return false;
+      return event.clientX <= anchor.getBoundingClientRect().right + EDGE_TOLERANCE_PX;
+    }
+
+    /** @returns whether the pointer target sits inside an open modal dialog. */
+    function insideModal(target) {
       let element = target;
-      while (element !== null) {
-        if (element === document.body || element === document.documentElement) return false;
-        if (element.contains(anchor)) return true;
+      while (element !== null && element !== document.body) {
+        if (element.getAttribute?.('aria-modal') === 'true') return true;
         element = element.parentElement;
       }
       return false;
@@ -231,7 +252,8 @@ window.__ModuleLoader__.load({
     * @param props - owner `wide` flag plus the controller writers.
     * @returns the anchor element.
     */
-    function SidebarAnchor({ wide, setWide, setAnchor }) {
+    function SidebarAnchor({ wide, setWide, setAnchor, useAutoCollapse }) {
+      const state = useAutoCollapse((value) => value);
       const ref = React.useRef(null);
       React.useLayoutEffect(() => {
         setAnchor(ref.current);
@@ -245,6 +267,7 @@ window.__ModuleLoader__.load({
       return h('span', {
         ref,
         'aria-hidden': 'true',
+        'data-asc': JSON.stringify({ ownerWide: wide, ...state }),
         style: { display: 'block', flex: '1 1 0', minWidth: 0, height: 0, overflow: 'hidden' }
       });
     }
@@ -281,6 +304,7 @@ window.__ModuleLoader__.load({
         order: 1000,
         locale: NS,
         inject: () => ({
+          hooks: { autoCollapse: controller.store },
           setWide: (wide) => {
             controller.setWide(wide);
           },

@@ -56,7 +56,7 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 | `forks/dsh-web-restart` | 侧边栏「重启 DSH」按钮 —— WSL 分支、不碰子进程、掉线自动恢复 + 静默刷新、`/dsh-watch` 信标 | 上游 `github:1123762794/dsh-web-restart` (5de8214, MIT) |
 | `patches/dsh-pocket-2.10.6` | ① `home` 兜底（隧道自动恢复死码）② `sessionKey` 落盘（重启免重输 PIN） | npm `dsh-pocket@2.10.6` |
 | `plugins/dsh-monitor` | 侧边栏监视面板：后台任务 / 会话 / 系统负载 | 自研 |
-| `plugins/sidebar-auto-collapse` | 侧边栏自动折叠 | 自研 |
+| `plugins/sidebar-auto-collapse` | 侧边栏自动折叠 + 悬停展开（设置页「自动收起左侧栏」开关，含 27 项自测） | 自研 |
 | `files/hooks/tool-budget.sh` | 调研预算闸（重复 + **换皮重复**判重，60/150/300/500 分档提醒） | 自研 |
 | `files/profile/` | web profile 的 `cordis.patch.yml` + `package.json`（hooks 桥接 / llm-mimo / 默认模型 / 本地 bundle 依赖） | 本机配置快照 |
 

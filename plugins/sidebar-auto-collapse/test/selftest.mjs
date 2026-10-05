@@ -26,10 +26,11 @@ class FakeEl {
 
 const html = new FakeEl('html');
 const body = new FakeEl('body', html);
-const column = new FakeEl('column', body);
+const frame = new FakeEl('frame', body);
+const column = new FakeEl('column', frame);
 const anchorNode = new FakeEl('anchor', column);
 const insideTarget = new FakeEl('row', column);
-const outsideTarget = new FakeEl('main', body);
+const outsideTarget = new FakeEl('main', frame);
 
 globalThis.window = {
   __ModuleLoader__: { load: (definition) => { captured = definition; } },
@@ -100,8 +101,13 @@ check(typeof rowFace.hooks.autoCollapse.getSnapshot === 'function', 'hook source
 check(rowFace.hooks.autoCollapse.getSnapshot().enabled === false, 'preference starts off');
 
 console.log('mount');
-const anchorEl = anchor.component({ wide: true, ...anchorFace });
+const anchorEl = anchor.component({
+  wide: true,
+  useAutoCollapse: (selector) => selector(anchorFace.hooks.autoCollapse.getSnapshot()),
+  ...anchorFace,
+});
 check(anchorEl.type === 'span', 'anchor renders a span');
+check(String(anchorEl.props['data-asc']).includes('"ownerWide":true'), 'anchor publishes controller state for debugging');
 const rowEl = row.component({
   t: (key) => key,
   useAutoCollapse: (selector) => selector(rowFace.hooks.autoCollapse.getSnapshot()),
@@ -118,12 +124,13 @@ check(toggles === 1, 'exactly one toggleSidebar after enabling');
 check(rowFace.hooks.autoCollapse.getSnapshot().enabled === true, 'preference published to the row');
 anchorFace.setWide(false);
 await sleep(60);
-check(toggles === 1, 'no toggle inside the settle window');
+check(toggles === 1, 'no second toggle once the shell reports the new state');
 await sleep(500);
 check(toggles === 1, 'no toggle once the column already matches');
 
 console.log('hover expands, leaving collapses');
-documentListeners.get('pointerover')({ target: insideTarget, clientX: 200 });
+check(frame.contains(anchorNode) && outsideTarget.parentElement === frame, 'outside target shares the frame with the anchor (containment-walk trap fixture)');
+documentListeners.get('pointerover')({ target: insideTarget, clientX: 20 });
 await sleep(60);
 check(toggles === 2, 'hover-in toggles the column back open');
 anchorFace.setWide(true);
@@ -132,15 +139,26 @@ check(toggles === 2, 'no toggle while the pointer stays inside');
 documentListeners.get('pointerover')({ target: outsideTarget, clientX: 600 });
 await sleep(260);
 check(toggles === 3, 'hover-out toggles the column closed');
+
+console.log('reversing mid-transition is immediate (no settle window)');
+documentListeners.get('pointerover')({ target: insideTarget, clientX: 20 });
+await sleep(60);
+check(toggles === 4, 'hover-in during the collapse toggles right away');
+anchorFace.setWide(true);
+await sleep(120);
+check(toggles === 4, 'stable while the pointer stays inside');
+documentListeners.get('pointerover')({ target: outsideTarget, clientX: 600 });
+await sleep(200);
+check(toggles === 5, 'hover-out right after an expand toggles right away');
 anchorFace.setWide(false);
-await sleep(500);
-check(toggles === 3, 'stable after hover-out settle');
+await sleep(120);
+check(toggles === 5, 'stable once the column matches again');
 
 console.log('disable stops the controller');
 rowFace.setEnabled(false);
-documentListeners.get('pointerover')({ target: insideTarget, clientX: 200 });
+documentListeners.get('pointerover')({ target: insideTarget, clientX: 20 });
 await sleep(300);
-check(toggles === 3, 'no toggles while the feature is off');
+check(toggles === 5, 'no toggles while the feature is off');
 check(documentListeners.has('pointerover'), 'pointer listener still installed until dispose');
 
 cleanups.forEach((dispose) => dispose());

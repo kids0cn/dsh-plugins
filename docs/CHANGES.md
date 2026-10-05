@@ -49,7 +49,21 @@ Client 半边进 `sidebar.panellist` + `main` 槽，2s 轮询。安装：`dsh pl
 
 ## 5. `plugins/sidebar-auto-collapse`
 
-侧边栏自动折叠（client 半边为主）。安装同上。
+侧边栏自动折叠 + 悬停展开（client 半边为主）。安装同上。
+
+上游：`deepseek-ai/deepseek-harness`（该仓 **Issues 关闭**，走 Discussions）
+上游 issue：[Discussions #8882 — ui-layout 缓动失效](https://github.com/deepseek-ai/deepseek-harness/discussions/8882)（2026-10-05 提）
+
+| # | 改了什么 | 为什么 | 怎么验证的 |
+|---|---|---|---|
+| 1 | `newSnapshotStore` → `createSnapshotStore` | `apply` 首行 ReferenceError → fiber `failed`，页面报「1 entry did not activate」 | `list_plugins` `fiberPhase: active`，页面无红条 |
+| 2 | 重跑 `install_bundle` 恢复 bundle 登记 | 22:28 一次 plugin-manager 操作重写 profile `package.json`，把本包从 `dsh.profile.bundles`/`dependencies` 抹掉 → 23:58 重启后**客户端启动图里没有本包**（71 条缺一） | `window.__DSH_BOOT__.entries` 含 `@local/sidebar-auto-collapse` |
+| 3 | 命中判定 `insideColumn`（爬祖先）→ `pointerInside`（锚点横向范围 + 排除模态） | **frame 同时是左栏和中栏的祖先** → 中栏目标恒判"在栏内" → 移出永不收起 | 真机：移出 171ms 收起（改前不动）；单测加 frame 陷阱 fixture |
+| 4 | 400ms 结算死区 → 目标态对账（`target`，`wide` 只做现实确认） | `wide` 收起方向滞后 150ms，反向最坏卡 ~560ms，手感一顿一顿 | 单测「过渡中途反向立即生效」3 项；真机悬停进 11–29ms |
+| 5 | 锚点加 `data-asc` 诊断属性（`enabled/inside/wide/note`） | 排查时看不到控制器内部状态，只能靠猜 | 真机读 `data-asc` 直接定位到第 3 条那个 bug |
+
+真机采样口径：agent-browser 纯 JS eval，每 15ms 读 `getComputedStyle(frame).gridTemplateColumns`，
+对照组是**宿主自己的按钮**（同样一帧切 → 证明缓动是宿主问题，见上游 issue）。
 
 ## 6. `files/profile/` —— web profile 配置快照
 
@@ -62,5 +76,6 @@ Client 半边进 `sidebar.panellist` + `main` 槽，2s 轮询。安装：`dsh pl
 
 ## 未做的事
 
-- 上游 issue：只给 `dsh-web-restart` 提过 #2；pocket 的两处**未提 issue**
+- 上游 issue：`dsh-web-restart` #2 提过；pocket 的两处**未提 issue**；
+  ui-layout 缓动失效已提 harness [Discussions #8882](https://github.com/deepseek-ai/deepseek-harness/discussions/8882)（该仓 Issues 关闭）
 - 未做：把 `dsh-web-restart` 的改动回流上游 / 建 GitHub fork（用户拍板：只存快照靠重放）
