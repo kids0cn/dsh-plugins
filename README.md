@@ -9,7 +9,7 @@
 
 | 目录 | 放什么 | 例子 |
 |---|---|---|
-| `plugins/<name>/` | ⭐ **自研插件**（以后每个新插件一个文件夹，自带 `package.json` + `cordis.patch.yml` + README） | `dsh-monitor`、`sidebar-auto-collapse` |
+| `plugins/<name>/` | ⭐ **自研插件**（以后每个新插件一个文件夹，自带 `package.json` + `cordis.patch.yml` + README） | `dsh-monitor`、`sidebar-auto-collapse`、`panel-drawer` |
 | `forks/<name>/` | 对上游**整包**的 fork 快照（改动集中、量大） | `dsh-web-restart` |
 | `patches/<pkg>-<ver>/` | 对上游包的**局部补丁**（unified diff + 原版版本号） | `dsh-pocket-2.10.6` |
 | `files/` | 不属于某个包的独立文件 | `hooks/tool-budget.sh`、`profile/*` |
@@ -57,6 +57,7 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 | `patches/dsh-pocket-2.10.6` | ① `home` 兜底（隧道自动恢复死码）② `sessionKey` 落盘（重启免重输 PIN） | npm `dsh-pocket@2.10.6` |
 | `plugins/dsh-monitor` | 侧边栏监视面板：后台任务 / 会话 / 系统负载 | 自研 |
 | `plugins/sidebar-auto-collapse` | 侧边栏自动折叠 + 悬停展开（设置页「自动收起左侧栏」开关，含 27 项自测） | 自研 |
+| `plugins/panel-drawer` | 左侧栏二级抽屉：面板入口收进一个图标（技能中心/任务看板/上下文洞察默认收编），管理页拖动选择显隐，中英双语 | 自研 |
 | `files/hooks/tool-budget.sh` | 调研预算闸（重复 + **换皮重复**判重，60/150/300/500 分档提醒） | 自研 |
 | `files/profile/` | web profile 的 `cordis.patch.yml` + `package.json`（hooks 桥接 / llm-mimo / 默认模型 / 本地 bundle 依赖） | 本机配置快照 |
 

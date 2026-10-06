@@ -74,6 +74,19 @@ Client 半边进 `sidebar.panellist` + `main` 槽，2s 轮询。安装：`dsh pl
 > 这两个是**本机配置**不是通用插件，`apply.sh` 默认不覆盖（`--with-profile` 才拷），
 > 换机重建时对照着改。
 
+## 7. `plugins/panel-drawer` —— 左侧栏二级抽屉（2026-10-06）
+
+动机：面板类插件装多了左侧栏拥挤，而 skill-explorer / task-board / dsh-context **都没有官方
+"隐藏入口"配置**。用户拍板方案 B：panellist 只留 1 个图标 + 弹层收纳，通用配置可拖动。
+
+| # | 改了什么 / 踩了什么 | 为什么 | 怎么验证的 |
+|---|---|---|---|
+| 1 | 图标尺寸用槽位传入的 `props.size`（16/18），首版写 `100%` 撑成巨大卡片 | `panelGlyph` 不是定尺寸盒，百分比按整行宽度解析 | 首版被用户截图纠正（「你自己看看丑不丑」）→ 修后 eval 实测 glyph 16×16、行高 36 |
+| 2 | 整行点击：document **捕获层**拦本行 click 再 toggle | 壳的 `PanelRow onClick=selectPanel`，点行内文字直接进了管理页（用户报「没有弹出二级抽屉」） | 探针复现用户点法（点文字）→ flyout 开、`aria-current=null`（selectPanel 未触发）、点空白关闭 |
+| 3 | 隐藏 = 双语 aria-label CSS + DOM 同步兜底 + 条目级稳定 selector（`button.lc-ov-entry`） | 官方无隐藏 API；页面语言切 EN 后中文规则失配（实测 `Context Insights` 没藏住） | eval computed display：EN 页 Skill Center / Context Insights 均 `none`，Plugins 未误伤 |
+| 4 | CATALOG 静态元数据（双语标签/selector）与用户配置分离 | 条目移出抽屉后配置里没有 selector → 管理页认不出、加不回来（自测撞出） | 放回→再收进按钮回路 + 重载恢复默认三件套 |
+| 5 | 更新插件必须 `remove_bundle` → `install_bundle` | 直接重装报 `ambiguous-install`（link 源归一化判异源），连踩 3 轮 | 第 4 轮起走卸装循环，零 warning applied |
+
 ## 未做的事
 
 - 上游 issue：`dsh-web-restart` #2 提过；pocket 的两处**未提 issue**；

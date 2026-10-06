@@ -1,0 +1,3 @@
+- insert:
+    - id: panel-drawer
+      name: '@local/panel-drawer'
