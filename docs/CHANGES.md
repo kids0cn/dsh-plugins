@@ -5,6 +5,9 @@
 
 ## 1. `forks/dsh-web-restart` —— 重启按钮（改动最大）
 
+> ⚠️ **2026-10-06：该目录已删**（用户评「写的太垃圾」，自己在重写）。本节仅作历史存档；
+> 插件本身也已于同日卸载，现走 `kill -9` + systemd 拉起。
+
 上游：[`github:1123762794/dsh-web-restart`](https://github.com/1123762794/dsh-web-restart) main `5de8214`（MIT）
 上游 issue：[#2 建议按运行环境分支重启命令](https://github.com/1123762794/dsh-web-restart/issues/2)
 

@@ -10,7 +10,7 @@
 | 目录 | 放什么 | 例子 |
 |---|---|---|
 | `plugins/<name>/` | ⭐ **自研插件**（以后每个新插件一个文件夹，自带 `package.json` + `cordis.patch.yml` + README） | `dsh-monitor`、`sidebar-auto-collapse`、`panel-drawer` |
-| `forks/<name>/` | 对上游**整包**的 fork 快照（改动集中、量大） | `dsh-web-restart` |
+| `forks/<name>/` | 对上游**整包**的 fork 快照（改动集中、量大） | （暂空：`dsh-web-restart` 已删，重写中） |
 | `patches/<pkg>-<ver>/` | 对上游包的**局部补丁**（unified diff + 原版版本号） | `dsh-pocket-2.10.6` |
 | `files/` | 不属于某个包的独立文件 | `hooks/tool-budget.sh`、`profile/*` |
 | `docs/CHANGES.md` | 每处改动的动机 / 验证 / 上游 issue | — |
@@ -23,16 +23,15 @@
 ```bash
 git clone https://github.com/kids0cn/dsh-plugins.git
 cd dsh-plugins
-./apply.sh      # 幂等重放：fork 覆盖 2 个文件 + pocket 打补丁 + hook 安装
+./apply.sh      # 幂等重放：pocket 打补丁 + hook 安装（+ --with-profile 拷 profile）
 sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不生效
 ./verify.sh     # 冒烟：health 探针 / 补丁标记 / session.key 权限 / journal 信标
 ```
 
-三类改动在升级时的命运：
+两类改动在升级时的命运：
 
 | 类型 | 升级会怎样 | `apply.sh` 怎么处理 |
 |---|---|---|
-| fork 快照 | `dsh plugin add` 装回上游原版 | 精确覆盖 `lib/index.js` + `lib/client.js` 两个文件（不动上游其余部分） |
 | 局部补丁 | pnpm 升级还原原文件 | 检测是否已打过 → `patch -p1 --forward`；版本变了会明确报错，不静默 |
 | 独立文件 | 不受影响（不在 node_modules） | 直接安装（hook 先备份旧文件） |
 
@@ -53,7 +52,6 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 
 | 路径 | 是什么 | 来源 |
 |---|---|---|
-| `forks/dsh-web-restart` | 侧边栏「重启 DSH」按钮 —— WSL 分支、不碰子进程、掉线自动恢复 + 静默刷新、`/dsh-watch` 信标 | 上游 `github:1123762794/dsh-web-restart` (5de8214, MIT) |
 | `patches/dsh-pocket-2.10.6` | ① `home` 兜底（隧道自动恢复死码）② `sessionKey` 落盘（重启免重输 PIN） | npm `dsh-pocket@2.10.6` |
 | `plugins/dsh-monitor` | 侧边栏监视面板：后台任务 / 会话 / 系统负载 | 自研 |
 | `plugins/sidebar-auto-collapse` | 侧边栏自动折叠 + 悬停展开（设置页「自动收起左侧栏」开关，含 27 项自测） | 自研 |
@@ -65,7 +63,6 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 
 ## 许可
 
-- `forks/dsh-web-restart/` —— 上游 **MIT**，保留其 `LICENSE` 与署名
 - `patches/dsh-pocket-2.10.6/` —— 上游 `dsh-pocket` 为 **GPL-2.0**；本目录是针对它的 diff
   （衍生作品，**同以 GPL-2.0 发布**；原包本身不在本仓库再分发，见该目录 `LICENSE-NOTE`）
 - 其余（`plugins/`、`files/`、脚本、文档）—— 原创，**MIT**
