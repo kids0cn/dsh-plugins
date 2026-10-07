@@ -15,7 +15,7 @@ ok()   { printf '✅ %s\n' "$*"; }
 warn() { printf '⚠️  %s\n' "$*"; }
 err()  { printf '❌ %s\n' "$*"; FAIL=1; }
 
-echo "== 1/3 patches/dsh-pocket-2.10.6"
+echo "== 1/4 patches/dsh-pocket-2.10.6"
 TARGET="$NM/dsh-pocket/lib/index.js"
 PATCH="$HERE/patches/dsh-pocket-2.10.6/dsh-pocket-2.10.6.patch"
 if [ ! -f "$TARGET" ]; then
@@ -32,7 +32,25 @@ else
   fi
 fi
 
-echo "== 2/3 files/hooks/tool-budget.sh"
+echo "== 2/4 patches/*-0.4.5 Token 银行铸造 mimo"
+# profile 挂的是聚合行，浏览器半区装的是 dsh-web-all（子插件 client 内联），
+# 独立包 dsh-usage 那份是死码——两包都打，任一缺失都能报出来。
+for P in dsh-web-all dsh-usage; do
+  TARGET="$NM/@linxin666/$P/lib/client.js"
+  PATCH="$HERE/patches/$P-0.4.5/$P-0.4.5.patch"
+  if [ ! -f "$TARGET" ]; then
+    warn "@linxin666/$P 未安装，跳过"
+  elif grep -q 'row.provider === "mimo"' "$TARGET"; then
+    ok "@linxin666/$P 已打过补丁，跳过"
+  elif patch -d "$NM/@linxin666/$P" -p1 --forward --dry-run < "$PATCH" >/dev/null 2>&1; then
+    patch -d "$NM/@linxin666/$P" -p1 --forward < "$PATCH" >/dev/null && ok "@linxin666/$P 补丁已应用" || err "@linxin666/$P patch 执行失败"
+  else
+    err "@linxin666/$P 补丁无法应用（版本可能已变）：对照 $PATCH 与该目录 upstream-package.json，"
+    note "手动移植：lib/client.js 里 deepseekVoucherData 的过滤 + 4 条 usage.bank.* 文案"
+  fi
+done
+
+echo "== 3/4 files/hooks/tool-budget.sh"
 mkdir -p "$HOOK_DIR" 2>/dev/null
 if [ -f "$HOOK_DIR/tool-budget.sh" ] && ! cmp -s "$HERE/files/hooks/tool-budget.sh" "$HOOK_DIR/tool-budget.sh"; then
   cp -p "$HOOK_DIR/tool-budget.sh" "$HOOK_DIR/tool-budget.sh.bak.$(date +%Y%m%d%H%M%S)" && note "旧文件已备份"
@@ -43,7 +61,7 @@ else
   err "hook 安装失败"
 fi
 
-echo "== 3/3 files/profile"
+echo "== 4/4 files/profile"
 if [ "${1:-}" = "--with-profile" ]; then
   PDIR="$DSH_HOME/profiles/$DSH_PROFILE"
   [ -f "$PDIR/cordis.patch.yml" ] && cp -p "$PDIR/cordis.patch.yml" "$PDIR/cordis.patch.yml.bak.$(date +%Y%m%d%H%M%S)"

@@ -1,0 +1,4 @@
+@linxin666/dsh-usage (npm) is licensed under Apache-2.0.
+This directory contains a unified diff against dsh-usage@0.4.5 — a modified version of
+that program — and is therefore distributed under Apache-2.0 as well.
+The original package is NOT redistributed here; only the patch is.

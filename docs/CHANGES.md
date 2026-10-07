@@ -90,8 +90,25 @@ Client 半边进 `sidebar.panellist` + `main` 槽，2s 轮询。安装：`dsh pl
 | 4 | CATALOG 静态元数据（双语标签/selector）与用户配置分离 | 条目移出抽屉后配置里没有 selector → 管理页认不出、加不回来（自测撞出） | 放回→再收进按钮回路 + 重载恢复默认三件套 |
 | 5 | 更新插件必须 `remove_bundle` → `install_bundle` | 直接重装报 `ambiguous-install`（link 源归一化判异源），连踩 3 轮 | 第 4 轮起走卸装循环，零 warning applied |
 
+## 8. `patches/dsh-web-all-0.4.5` + `patches/dsh-usage-0.4.5` —— Token 银行铸造 mimo（2026-10-07）
+
+动机：使用统计的 Token 银行只把 DeepSeek 官方家族铸成鲸元券，而本机默认 provider 是 `mimo`——
+台账里 mimo 才是大头（253.4M tokens / 1321 次 vs 官方家族 112.1M / 294 次），票面永远只显示官方那一小半。
+
+上游：npm `@linxin666/dsh-usage@0.4.5`（源码在 `zhu1090093659/dsh-web` 的 `packages/dsh-usage/`，
+npm scope 与仓库作者不同名）。上游 issue：
+[dsh-web#1831](https://github.com/zhu1090093659/dsh-web/issues/1831)（该仓**不收外部 PR**，
+`reject-non-content-pr.yml` 会秒关，故走 Issue + fork 分支 `kids0cn/dsh-web:feat/usage-bank-mimo`）。
+
+| # | 改了什么 / 踩了什么 | 为什么 | 怎么验证的 |
+|---|---|---|---|
+| 1 | `deepseekVoucherData` 过滤改成 `!isDeepSeekProviderRoute(id) || id === "mimo"`（原文写法为 `\|\| row.provider === "mimo"`）；zh/en 的页签提示与空状态点名 MiMo | 铸造是**记账口径**，用路由 id 白名单而不是 adapter 家族——不能顺带放宽凭据/探测路径（同 `isDeepSeekProviderRoute` 的那条分界，上游 issue #1772）。MiMo 无价目表 → 只铸 tokens，消费估算与「官方余额实测花费 ¥7.50」口径不变 | 台账对账：官方家族 112,084,669 / 294 次 = 用户截图旧值 112M/294，含 mimo 后 365,531,381 / 1615 次；上游侧 `pnpm --filter @linxin666/dsh-usage test` 171 passed |
+| 2 | **两包各打一份补丁**：`dsh-web-all` 与 `dsh-usage` | 踩坑：首版只改 `dsh-usage/lib/client.js` → 页面照旧（用户截图 112M 揭穿）。profile 挂的是聚合行 `@linxin666/dsh-web-all/usage`，浏览器半区只装在 name==包名的那一行，**子插件 client 代码内联在聚合 bundle**，独立包那份是死码 | `grep` 老文案全 node_modules → 只剩聚合包一处；补丁后新判定 2 处、老文案 0 处、`node --check` 两包全过 |
+
+> 教训：**热补丁前先 grep 老字符串，确认代码真在哪个 bundle 里被加载**——"改了文件"不等于"改了运行的代码"。
+
 ## 未做的事
 
-- 上游 issue：`dsh-web-restart` #2 提过；pocket 的两处**未提 issue**；
+- 上游 issue：`dsh-web-restart` #2 提过；pocket 的两处**未提 issue**；Token 银行 mimo 已提 [dsh-web#1831](https://github.com/zhu1090093659/dsh-web/issues/1831)（2026-10-07）；
   ui-layout 缓动失效已提 harness [Discussions #8882](https://github.com/deepseek-ai/deepseek-harness/discussions/8882)（该仓 Issues 关闭）
 - 未做：把 `dsh-web-restart` 的改动回流上游 / 建 GitHub fork（用户拍板：只存快照靠重放）

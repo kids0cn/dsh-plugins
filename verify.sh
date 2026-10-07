@@ -51,8 +51,15 @@ for p in dsh-monitor sidebar-auto-collapse panel-drawer; do
   if [ -f "$HERE_PLUG/plugins/$p/package.json" ]; then ok "plugins/$p"; else err "仓库缺 plugins/$p"; fi
 done
 
+echo "== 7) Token 银行 mimo 铸造补丁"
+if grep -q 'row.provider === "mimo"' "$NM/@linxin666/dsh-web-all/lib/client.js" 2>/dev/null; then
+  ok "dsh-web-all client 含 mimo 铸造判定（聚合包是真被加载的那份）"
+else
+  err "补丁缺失 → ./apply.sh 后重启（只改 dsh-usage 无效，client 内联在聚合包里）"
+fi
+
 if [ "${PUBLIC:-0}" = "1" ]; then
-  echo "== 7) 公网隧道"
+  echo "== 8) 公网隧道"
   C=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 https://dsh.hack4fun.asia/ || echo 000)
   case "$C" in
     200|401|302) ok "HTTP $C" ;;

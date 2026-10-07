@@ -23,7 +23,7 @@
 ```bash
 git clone https://github.com/kids0cn/dsh-plugins.git
 cd dsh-plugins
-./apply.sh      # 幂等重放：pocket 打补丁 + hook 安装（+ --with-profile 拷 profile）
+./apply.sh      # 幂等重放：pocket + Token银行mimo 两处补丁 + hook 安装（+ --with-profile 拷 profile）
 sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不生效
 ./verify.sh     # 冒烟：health 探针 / 补丁标记 / session.key 权限 / journal 信标
 ```
@@ -53,6 +53,7 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 | 路径 | 是什么 | 来源 |
 |---|---|---|
 | `patches/dsh-pocket-2.10.6` | ① `home` 兜底（隧道自动恢复死码）② `sessionKey` 落盘（重启免重输 PIN） | npm `dsh-pocket@2.10.6` |
+| `patches/dsh-web-all-0.4.5`、`patches/dsh-usage-0.4.5` | Token 银行鲸元券把 `mimo` 路由计入铸造（**聚合包内联了子插件 client，两包都要打**，只改 dsh-usage 无效） | npm `@linxin666/dsh-web-all@0.4.5`、`@linxin666/dsh-usage@0.4.5` |
 | `plugins/dsh-monitor` | 侧边栏监视面板：后台任务 / 会话 / 系统负载 | 自研 |
 | `plugins/sidebar-auto-collapse` | 侧边栏自动折叠 + 悬停展开（设置页「自动收起左侧栏」开关，含 27 项自测） | 自研 |
 | `plugins/panel-drawer` | 左侧栏二级抽屉：面板入口收进一个图标（技能中心/任务看板/上下文洞察默认收编），管理页拖动选择显隐，中英双语 | 自研 |
@@ -65,4 +66,6 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 
 - `patches/dsh-pocket-2.10.6/` —— 上游 `dsh-pocket` 为 **GPL-2.0**；本目录是针对它的 diff
   （衍生作品，**同以 GPL-2.0 发布**；原包本身不在本仓库再分发，见该目录 `LICENSE-NOTE`）
+- `patches/dsh-web-all-0.4.5/`、`patches/dsh-usage-0.4.5/` —— 上游为 **Apache-2.0**；同为针对其的
+  diff（**同以 Apache-2.0 发布**，原包不在本仓库再分发，见各目录 `LICENSE-NOTE`）
 - 其余（`plugins/`、`files/`、脚本、文档）—— 原创，**MIT**
