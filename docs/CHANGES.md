@@ -107,6 +107,23 @@ npm scope 与仓库作者不同名）。上游 issue：
 
 > 教训：**热补丁前先 grep 老字符串，确认代码真在哪个 bundle 里被加载**——"改了文件"不等于"改了运行的代码"。
 
+## 9. `skins/liquid-glass` —— 液态玻璃皮肤（2026-10-07）
+
+来源：社区主题包 `dsh-liquid-glass-theme`（`glass.css` 40K + `apply.js` + README），
+原方案把 CSS 注入 `dsh-web-frontend/dist` 并改 `dist/index.html` 的 `<link>` ——
+**正好踩本仓开篇那条**：`dsh plugin add/upgrade`、pnpm 重装都会把它冲掉。
+用户拍板改走 skin-center 用户皮肤（`~/.dsh/skins/<name>/`），**只换载体，样式逻辑未改**。
+
+| # | 改了什么 / 踩了什么 | 为什么 | 怎么验证的 |
+|---|---|---|---|
+| 1 | dist 注入 → `skin.json`（v2 清单）+ `skin.css` 放进 `~/.dsh/skins/liquid-glass/`，`~/.dsh/skin-center-active.json` 的 `active` 置为 `liquid-glass` | 皮肤目录不随 dsh 升级丢失；主题 README 自陈「DSH 更新会清空 dist，重跑 apply.js 恢复」= 每次升级返工 | 插件自带 `validateSkinManifestV2` → `ok:true`；`transformSkinCss` 解析 48320 字节通过 |
+| 2 | 追加「兼容补丁 v3.1」：23 条规则按现行 DOM 改写类名（`detailsCol→rightbarCol`、`gdEzaW_bubble→Sixlwa_bubble`、`qDHVXG_*→bhn1Oq_*`、`nLMEza_dock/bar/iconBtn→uV2eYG_dock`、`sessionLogButton→moreButton`） | 主题面向前端 **0.1.0-rc.7**，依赖的 37 个哈希类里 18 个已换代 → 组件级玻璃规则全部打空，只剩背景极光 | 打开运行中的 3081，`getElementsByClassName` 逐类实测：19 命中 / 18 缺；改写后 `transformSkinCss` 仍通过 |
+| 3 | **`grep dist` 判类名是假阴性**：第一轮核对报「6 个类全 0 命中」，差点据此判定主题全废 | 这些哈希类名不在 `dsh-web-frontend/dist/assets` 里 —— 静态 grep 扫的是错误的文件集，运行时 DOM 才是真相 | 同一批类改用 DOM 实测后：`pI_x6G_frame` / `wSkVaW_header` / `uV2eYG_card` 全部在场 |
+| 4 | 未映射：`VOzbGW_*`（设置弹层当前未挂载）、`.uV2eYG_mirror` / `.uV2eYG_backdrop`（条件渲染） | 缺运行时样本，硬猜类名不如留空转 | 规则保留为无害空转；下次打开设置页补映射即可 |
+
+> 教训：**判断「某个 CSS 选择器还命中吗」要查运行时 DOM，不要 grep 构建产物** ——
+> 哈希类名可能来自别的 bundle 或运行时注入，静态 grep 的 0 命中不是证据。
+
 ## 未做的事
 
 - 上游 issue：`dsh-web-restart` #2 提过；pocket 的两处**未提 issue**；Token 银行 mimo 已提 [dsh-web#1831](https://github.com/zhu1090093659/dsh-web/issues/1831)（2026-10-07）；

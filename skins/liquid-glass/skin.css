@@ -1,0 +1,1106 @@
+/* liquid-glass (液态玻璃) skin — 由社区主题包 dsh-liquid-glass-theme 的 glass.css 改造而来
+   （原方案：把 CSS 注入 dsh-web-frontend/dist；2026-10-07 改走 skin-center，不碰 node_modules、升级不丢）。
+   兼容性实况：面向前端 0.1.0-rc.7 的哈希类名（.pI_x6G_frame / .uV2eYG_card / .gdEzaW_bubble ...）
+   在本机 0.2.0-rc.2 已全部换代（实测 0 命中），这些组件级玻璃规则不会命中；
+   仍生效的是结构选择器（body / #root 的极光背景）与 --dsw-alias-* / --dsw-specific-* 令牌重映射。 */
+
+/* ============================================================================
+ * DSH — 液态玻璃 (Liquid Glass) 主题 v3
+ * ----------------------------------------------------------------------------
+ * 设计方向：Apple Liquid Glass —— 在流动的环境光 (Aurora) 之上叠加
+ * 半透明磨砂面板，用「内高光描边 + 外层柔影 + 圆角」刻画出玻璃边缘的
+ * 液态高光。规则全部以 body 前缀提升特异性，压过运行时注入的组件样式。
+ *
+ * 覆盖策略：
+ *   1. 先重映射 --dsw-alias-* / --dsw-specific-* 设计令牌（结构性、稳健）；
+ *   2. 再对关键表面（三栏、头部、输入卡、气泡、卡片、浮层）做玻璃化。
+ * 浅色 / 深色两套均支持，由 body[data-ds-dark-theme] 区分。
+ *
+ * ── v3 性能优化 ─────────────────────────────────────────────────────────
+ *   之前大量表面同时使用 backdrop-filter: blur(...) saturate(...)，
+ *   而且背景层还在持续动画，导致浏览器每帧都要对背景重新采样模糊，
+ *   在滚动/交互时明显卡顿。v3 的取舍：
+ *     · 去掉所有 saturate()（颜色矩阵滤镜很贵）；
+ *     · 大幅调低 blur 半径；
+ *     · 大块三栏、细条状态卡不再用 backdrop-filter（改回半透明渐变 + 内高光，
+ *       视觉仍是玻璃，但不再每帧重模糊）；
+ *     · 只在「真正需要毛玻璃的小面积」保留 backdrop-filter（头部、输入 Hero 卡、
+ *       消息气泡、任务坞、浮层）；
+ *     · 背景动画只走 transform（不缩放、避免重栅格化），并新增一层飘浮光斑，
+ *       让背景“活”起来。
+ * ========================================================================== */
+
+/* ───────────────────────── 1. 环境背景（Aurora + 光斑） ────────────────── */
+/* 基座渐变（静态，深色） */
+body[data-ds-dark-theme] {
+  background:
+    radial-gradient(1400px 900px at 82% -12%, rgba(66, 133, 244, 0.20), transparent 58%),
+    radial-gradient(1100px 760px at -12% 112%, rgba(147, 92, 246, 0.18), transparent 60%),
+    radial-gradient(900px 700px at 50% 120%, rgba(34, 211, 238, 0.10), transparent 60%),
+    linear-gradient(180deg, #0c101e 0%, #111730 48%, #0d1222 100%);
+}
+
+/* 基座渐变（浅色） */
+body:not([data-ds-dark-theme]) {
+  background:
+    radial-gradient(1300px 820px at 86% -10%, rgba(122, 165, 255, 0.28), transparent 58%),
+    radial-gradient(1050px 760px at -8% 110%, rgba(198, 168, 255, 0.24), transparent 60%),
+    radial-gradient(880px 680px at 55% 118%, rgba(150, 238, 224, 0.18), transparent 60%),
+    linear-gradient(180deg, #edf1fa 0%, #e6ecf8 52%, #eaeef5 100%);
+}
+
+/* 飘移光斑层 A（body::after，极光 + 光斑合并）与 B（#root::before）：
+ * 整层缓慢平移 + 轻微旋转，模拟液态光线流动；两层方向相反、转速不同。
+ * 性能优化（GPU 修复后放宽）：
+ *   · 只保留 2 个动画合成层（把原独立光斑层并入 A），减少层数量；
+ *   · 只做 transform（不缩放、避免重栅格化），动画交给合成器线程跑，
+ *     不占主线程、不和聊天滚动抢资源。 */
+body::after,
+#root::before {
+  content: "";
+  position: fixed;
+  inset: -6%;
+  pointer-events: none;
+  z-index: 0;
+  /* 强制提升到 GPU 合成层：transform 动画交给合成器跑，
+   * 不占主线程，避免和聊天滚动抢资源（弱 GPU 真机尤其明显）。 */
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+body[data-ds-dark-theme]::after {
+  /* 四周光斑（7 个，主次分明）：两个大光斑是主光源（更亮），
+   * 五个次光斑环绕补光，让极光更饱满、有层次。GPU 修复后恢复。 */
+  background:
+    radial-gradient(46% 40% at 24% 20%, rgba(66, 133, 244, 0.42), transparent 62%),
+    radial-gradient(40% 36% at 80% 70%, rgba(147, 92, 246, 0.36), transparent 62%),
+    radial-gradient(34% 30% at 78% 18%, rgba(34, 211, 238, 0.22), transparent 60%),
+    radial-gradient(30% 28% at 30% 82%, rgba(125, 165, 255, 0.17), transparent 66%),
+    radial-gradient(32% 28% at 88% 46%, rgba(100, 140, 255, 0.15), transparent 62%),
+    radial-gradient(28% 26% at 10% 52%, rgba(80, 120, 240, 0.14), transparent 64%),
+    radial-gradient(30% 28% at 54% 90%, rgba(167, 120, 255, 0.16), transparent 62%);
+  animation:
+    dsh-glass-drift-a 8.3s ease-in-out infinite,
+    dsh-glass-breathe 10s ease-in-out infinite;
+}
+
+body[data-ds-dark-theme] #root::before {
+  /* 全屏柔和环境光：只微微提亮，让光斑中心更亮、周围略暗。 */
+  background:
+    radial-gradient(120% 110% at 50% 48%, rgba(70, 105, 190, 0.14), transparent 82%),
+    radial-gradient(160% 140% at 50% 50%, rgba(40, 58, 104, 0.09), transparent 88%);
+  animation:
+    dsh-glass-drift-b 10.6s ease-in-out infinite,
+    dsh-glass-breathe 12s ease-in-out infinite;
+}
+
+body:not([data-ds-dark-theme])::after {
+  background:
+    radial-gradient(46% 40% at 24% 20%, rgba(140, 178, 255, 0.52), transparent 62%),
+    radial-gradient(40% 36% at 80% 70%, rgba(198, 168, 255, 0.46), transparent 62%),
+    radial-gradient(34% 30% at 78% 18%, rgba(150, 238, 224, 0.34), transparent 60%),
+    radial-gradient(30% 28% at 30% 82%, rgba(255, 255, 255, 0.36), transparent 66%),
+    radial-gradient(32% 28% at 88% 46%, rgba(170, 190, 255, 0.30), transparent 62%),
+    radial-gradient(28% 26% at 10% 52%, rgba(160, 180, 250, 0.28), transparent 64%),
+    radial-gradient(30% 28% at 54% 90%, rgba(205, 170, 255, 0.30), transparent 62%);
+  animation:
+    dsh-glass-drift-a 8.3s ease-in-out infinite,
+    dsh-glass-breathe 9s ease-in-out infinite;
+}
+
+body:not([data-ds-dark-theme]) #root::before {
+  background:
+    radial-gradient(120% 110% at 50% 48%, rgba(160, 190, 240, 0.20), transparent 82%),
+    radial-gradient(160% 140% at 50% 50%, rgba(120, 150, 205, 0.13), transparent 88%);
+  animation:
+    dsh-glass-drift-b 10.6s ease-in-out infinite,
+    dsh-glass-breathe 11s ease-in-out infinite;
+}
+
+/* 颗粒噪点（#root::after）：压在玻璃之上的一层极淡胶片颗粒，
+ * 去掉纯渐变的“塑料感”，给玻璃一点物理质感。静态、只合成一次。 */
+#root::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+}
+
+/* 极光：四周光斑缓慢漂浮流动（上下起伏 + 环绕 + 轻微旋转）。
+ * 改成闭环椭圆轨道（0% 与 100% 完全重合），像悬浮的液态光轻盈绕动，
+ * 两层方向相反、幅度略不同，错开相位更有机。仍只用 transform，
+ * 配合 will-change 走 GPU 合成，不占主线程。 */
+@keyframes dsh-glass-drift-a {
+  0%   { transform: translate3d(0%, -1.6%, 0) rotate(-1deg); }
+  25%  { transform: translate3d(1.8%, 0%, 0) rotate(0deg); }
+  50%  { transform: translate3d(0%, 1.6%, 0) rotate(1deg); }
+  75%  { transform: translate3d(-1.8%, 0%, 0) rotate(0deg); }
+  100% { transform: translate3d(0%, -1.6%, 0) rotate(-1deg); }
+}
+
+@keyframes dsh-glass-drift-b {
+  0%   { transform: translate3d(0%, 2%, 0) rotate(1.2deg); }
+  25%  { transform: translate3d(-2.2%, 0%, 0) rotate(0deg); }
+  50%  { transform: translate3d(0%, -2%, 0) rotate(-1.2deg); }
+  75%  { transform: translate3d(2.2%, 0%, 0) rotate(0deg); }
+  100% { transform: translate3d(0%, 2%, 0) rotate(1.2deg); }
+}
+
+/* 呼吸感：整层亮度缓慢起伏（opacity），配合漂移让极光“活”起来。
+ * opacity 与 transform 都是合成层友好属性，不会触发重排/重模糊。 */
+@keyframes dsh-glass-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.78; }
+}
+
+/* ───────────────────────── 2. 设计令牌重映射 ────────────────────────────── */
+
+/* ---- 深色：面板、描边、交互 ---- */
+body[data-ds-dark-theme] {
+  --dsw-alias-bg-base: transparent;                 /* 主底交给环境光 */
+  --dsw-alias-bg-layer-1: rgba(255, 255, 255, 0.05);
+  --dsw-alias-bg-layer-2: rgba(255, 255, 255, 0.07);
+  --dsw-alias-bg-layer-3: rgba(255, 255, 255, 0.09);
+  --dsw-alias-bg-module-platform: rgba(255, 255, 255, 0.06);
+  --dsw-alias-bg-overlay: rgba(17, 21, 34, 0.78);
+  --dsw-alias-bg-mask-1: rgba(4, 7, 15, 0.60);
+  --dsw-alias-bg-mask-2: rgba(4, 7, 15, 0.36);
+  --dsw-alias-bg-mask-3: rgba(4, 7, 15, 0.70);
+  --dsw-alias-bg-mask-drop: rgba(10, 13, 24, 0.52);
+  --dsw-alias-bg-skeleton: rgba(255, 255, 255, 0.08);
+
+  --dsw-alias-border-l1: rgba(255, 255, 255, 0.11);
+  --dsw-alias-border-l2: rgba(255, 255, 255, 0.15);
+  --dsw-alias-border-l3: rgba(255, 255, 255, 0.19);
+  --dsw-alias-border-l4: rgba(255, 255, 255, 0.26);
+
+  --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.10);
+  --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.16);
+
+  --dsw-specific-sidebar-fill: rgba(15, 19, 31, 0.42);
+  --dsw-specific-sidebar-nav-item-hover: rgba(255, 255, 255, 0.08);
+  --dsw-specific-sidebar-nav-item-active: rgba(86, 134, 254, 0.22);
+  --dsw-specific-menu: rgba(23, 29, 45, 0.74);
+  --dsw-specific-bubble: rgba(86, 134, 254, 0.26);
+  --dsw-specific-bubble-highlight: rgba(86, 134, 254, 0.42);
+  --dsw-specific-input-major: rgba(255, 255, 255, 0.05);
+  --dsw-specific-tip: rgba(23, 29, 45, 0.80);
+
+  --dsw-alias-scrollbar-bg-l1: rgba(255, 255, 255, 0.13);
+  --dsw-alias-scrollbar-bg-l2: rgba(255, 255, 255, 0.17);
+  --dsw-alias-scrollbar-hover-l1: rgba(255, 255, 255, 0.28);
+  --dsw-alias-scrollbar-hover-l2: rgba(255, 255, 255, 0.34);
+
+  --dsw-alias-label-tertiary: rgb(188, 194, 204);
+}
+
+/* ---- 浅色 ---- */
+body:not([data-ds-dark-theme]) {
+  --dsw-alias-bg-base: transparent;
+  --dsw-alias-bg-layer-1: rgba(255, 255, 255, 0.52);
+  --dsw-alias-bg-layer-2: rgba(255, 255, 255, 0.60);
+  --dsw-alias-bg-layer-3: rgba(255, 255, 255, 0.68);
+  --dsw-alias-bg-module-platform: rgba(255, 255, 255, 0.52);
+  --dsw-alias-bg-overlay: rgba(244, 247, 252, 0.84);
+  --dsw-alias-bg-mask-1: rgba(28, 36, 58, 0.36);
+  --dsw-alias-bg-mask-2: rgba(28, 36, 58, 0.20);
+  --dsw-alias-bg-mask-3: rgba(28, 36, 58, 0.46);
+  --dsw-alias-bg-mask-drop: rgba(244, 247, 252, 0.64);
+  --dsw-alias-bg-skeleton: rgba(20, 30, 60, 0.09);
+
+  --dsw-alias-border-l1: rgba(255, 255, 255, 0.74);
+  --dsw-alias-border-l2: rgba(255, 255, 255, 0.86);
+  --dsw-alias-border-l3: rgba(28, 36, 58, 0.10);
+  --dsw-alias-border-l4: rgba(28, 36, 58, 0.16);
+
+  --dsw-alias-interactive-bg-hover: rgba(28, 36, 58, 0.06);
+  --dsw-alias-interactive-bg-active: rgba(28, 36, 58, 0.10);
+
+  --dsw-specific-sidebar-fill: rgba(255, 255, 255, 0.44);
+  --dsw-specific-sidebar-nav-item-hover: rgba(28, 36, 58, 0.06);
+  --dsw-specific-sidebar-nav-item-active: rgba(59, 110, 255, 0.14);
+  --dsw-specific-menu: rgba(250, 252, 255, 0.80);
+  --dsw-specific-bubble: rgba(59, 110, 255, 0.10);
+  --dsw-specific-bubble-highlight: rgba(59, 110, 255, 0.18);
+  --dsw-specific-input-major: rgba(255, 255, 255, 0.58);
+  --dsw-specific-tip: rgba(250, 252, 255, 0.86);
+
+  --dsw-alias-scrollbar-bg-l1: rgba(28, 36, 58, 0.15);
+  --dsw-alias-scrollbar-bg-l2: rgba(28, 36, 58, 0.19);
+  --dsw-alias-scrollbar-hover-l1: rgba(28, 36, 58, 0.32);
+  --dsw-alias-scrollbar-hover-l2: rgba(28, 36, 58, 0.38);
+}
+
+/* ───────────────────────── 3. 玻璃面板（三栏框架） ─────────────────────── */
+/* v3：三栏不再用 backdrop-filter（面积大、背景又在动，每帧重模糊很贵）。
+ * 改为半透明渐变 + 内高光描边 + 圆角，环境光从半透明处透出，
+ * 视觉上仍是玻璃，但完全不触发逐帧重模糊。 */
+
+/* 框架本体：透明，让环境光从缝隙透出 */
+body .pI_x6G_frame {
+  background: transparent !important;
+}
+
+body[data-ds-dark-theme] .pI_x6G_sidebarCol {
+  background: linear-gradient(180deg, rgba(22, 28, 46, 0.62), rgba(11, 15, 26, 0.58));
+  border-right: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+body[data-ds-dark-theme] .pI_x6G_detailsCol {
+  background: linear-gradient(180deg, rgba(20, 26, 43, 0.56), rgba(12, 16, 27, 0.54));
+  border-left: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+body[data-ds-dark-theme] .pI_x6G_centerCol {
+  background: linear-gradient(180deg, rgba(10, 14, 24, 0.30), rgba(8, 11, 20, 0.24));
+}
+
+body:not([data-ds-dark-theme]) .pI_x6G_sidebarCol {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.42));
+  border-right: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.5);
+}
+
+body:not([data-ds-dark-theme]) .pI_x6G_detailsCol {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.40));
+  border-left: 1px solid rgba(255, 255, 255, 0.72);
+}
+
+body:not([data-ds-dark-theme]) .pI_x6G_centerCol {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.22));
+}
+
+/* ───────────────────────── 4. 顶部会话条（滚动浮现的磨砂玻璃） ─────────── */
+/* 保留毛玻璃（窄条，成本可控），去掉 saturate、降低 blur。 */
+body .wSkVaW_header {
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+body[data-ds-dark-theme] .wSkVaW_header {
+  background: rgba(12, 16, 27, 0.48);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+body:not([data-ds-dark-theme]) .wSkVaW_header {
+  background: rgba(255, 255, 255, 0.56);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+}
+
+/* 标签页（对话/轨迹）：磨砂玻璃胶囊 */
+body .wSkVaW_tabs {
+  gap: 10px !important;
+  padding-left: 4px !important;
+}
+body .wSkVaW_tab {
+  padding: 7px 16px !important;
+  border-radius: 11px !important;
+  line-height: 1;
+  color: rgb(176, 184, 198);
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+body .wSkVaW_tab:hover {
+  background: rgba(120, 150, 220, 0.10);
+  color: rgb(224, 231, 244);
+}
+body .wSkVaW_tabActive,
+body .wSkVaW_tab.wSkVaW_tabActive {
+  background: linear-gradient(180deg, rgba(120, 170, 255, 0.22), rgba(86, 134, 254, 0.12)) !important;
+  color: #dbe6ff !important;
+  border: 1px solid rgba(120, 170, 255, 0.30) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 18px -8px rgba(86, 134, 254, 0.55) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ───────────────────────── 5. 输入卡（Hero 玻璃） ──────────────────────── */
+/* 主角玻璃。v5：去掉 backdrop-filter —— 它和滚动区在底部重叠了 94px，
+ * 聊天内容滚动时会从它下方经过，导致每帧重模糊、滚动卡顿。
+ * 改回半透明渐变 + 内高光 + 边框，环境光透出即呈玻璃，滚动零负担。 */
+body .uV2eYG_card {
+  border-radius: 22px;
+  transition: transform var(--ds-transition-duration-slow, 300ms) var(--ds-ease-in-out, ease),
+              box-shadow var(--ds-transition-duration-slow, 300ms) var(--ds-ease-in-out, ease),
+              border-color var(--ds-transition-duration-slow, 300ms) var(--ds-ease-in-out, ease);
+}
+
+body[data-ds-dark-theme] .uV2eYG_card {
+  background: linear-gradient(180deg, rgba(38, 46, 68, 0.90), rgba(22, 28, 46, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 24px 48px -20px rgba(2, 6, 16, 0.65),
+    0 0 0 1px rgba(59, 130, 246, 0.10);
+}
+
+body[data-ds-dark-theme] .uV2eYG_card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 28px 56px -20px rgba(2, 6, 16, 0.70),
+    0 0 26px -6px rgba(59, 130, 246, 0.24);
+}
+
+body[data-ds-dark-theme] .uV2eYG_card:focus-within {
+  border-color: rgba(125, 165, 255, 0.46);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 24px 48px -20px rgba(2, 6, 16, 0.65),
+    0 0 0 3px rgba(86, 134, 254, 0.22);
+}
+
+body:not([data-ds-dark-theme]) .uV2eYG_card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.88));
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 24px 48px -20px rgba(31, 45, 80, 0.25),
+    0 0 0 1px rgba(31, 45, 80, 0.05);
+}
+
+body:not([data-ds-dark-theme]) .uV2eYG_card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 28px 56px -20px rgba(31, 45, 80, 0.30);
+}
+
+body:not([data-ds-dark-theme]) .uV2eYG_card:focus-within {
+  border-color: rgba(59, 110, 255, 0.46);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 24px 48px -20px rgba(31, 45, 80, 0.25),
+    0 0 0 3px rgba(59, 110, 255, 0.20);
+}
+
+/* 输入区内部：透出卡片玻璃 */
+body .uV2eYG_input,
+body .uV2eYG_backdrop,
+body .uV2eYG_mirror {
+  background: transparent !important;
+}
+
+/* 主发送 / 停止按钮：蓝→紫的液态渐变 + 光晕 */
+body .uV2eYG_primary {
+  background: linear-gradient(135deg, #4a8bff 0%, #7b6cff 100%) !important;
+  box-shadow: 0 6px 18px -6px rgba(74, 139, 255, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.38) !important;
+  transition: transform var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease) !important;
+}
+
+body .uV2eYG_primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -8px rgba(74, 139, 255, 0.80), inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+body .uV2eYG_primary:active {
+  transform: translateY(0);
+}
+
+/* 添加按钮（+ / 命令）：玻璃胶囊 */
+/* 输入框左下"+"加号：默认也做冷调磨砂玻璃，避免应用中性灰过于突兀 */
+body .uV2eYG_add {
+  border-radius: 12px;
+  transition:
+    background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+    border-color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .uV2eYG_add {
+  background: linear-gradient(180deg, rgba(86, 134, 254, 0.14), rgba(30, 40, 66, 0.46));
+  border: 1px solid rgba(86, 134, 254, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 4px 14px -8px rgba(86, 134, 254, 0.35);
+}
+body[data-ds-dark-theme] .uV2eYG_add:hover {
+  background: linear-gradient(180deg, rgba(86, 134, 254, 0.26), rgba(44, 58, 92, 0.5));
+  border-color: rgba(120, 160, 255, 0.44);
+}
+body:not([data-ds-dark-theme]) .uV2eYG_add {
+  background: linear-gradient(180deg, rgba(86, 134, 254, 0.22), rgba(255, 255, 255, 0.6));
+  border: 1px solid rgba(86, 134, 254, 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 4px 14px -8px rgba(86, 134, 254, 0.28);
+}
+body:not([data-ds-dark-theme]) .uV2eYG_add:hover {
+  background: linear-gradient(180deg, rgba(86, 134, 254, 0.32), rgba(255, 255, 255, 0.72));
+  border-color: rgba(86, 134, 254, 0.5);
+}
+
+/* ───────────────────────── 6. 消息气泡 ─────────────────────────────────── */
+/* v5：去掉 backdrop-filter —— 气泡在滚动区内，滚动时会逐条重模糊，
+ * 长对话里几十条气泡会拖累滚动。改回半透明渐变 + 内高光 + 描边。 */
+/* v6：加回轻量动画 —— 每条消息出现时淡入 + 上浮（仅 transform/opacity，
+ * 一次性播完即回到自然态，不会长期占用合成层），悬停时轻微上抬 + 描边发光。 */
+body .gdEzaW_bubble {
+  border: 1px solid transparent;
+  box-shadow: 0 8px 20px -12px rgba(2, 6, 16, 0.5);
+  border-radius: 14px;
+  animation: dsh-bubble-in 300ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition:
+    border-color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+    box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+    transform var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+
+body .gdEzaW_bubble:hover {
+  transform: translateY(-1px);
+}
+
+body[data-ds-dark-theme] .gdEzaW_bubble {
+  border-color: rgba(125, 165, 255, 0.22);
+}
+body[data-ds-dark-theme] .gdEzaW_bubble:hover {
+  border-color: rgba(125, 165, 255, 0.42);
+  box-shadow: 0 12px 28px -12px rgba(2, 6, 16, 0.55), 0 0 18px -6px rgba(125, 165, 255, 0.35);
+}
+
+body:not([data-ds-dark-theme]) .gdEzaW_bubble {
+  border-color: rgba(255, 255, 255, 0.80);
+  box-shadow: 0 8px 20px -12px rgba(31, 45, 80, 0.25);
+}
+body:not([data-ds-dark-theme]) .gdEzaW_bubble:hover {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 28px -12px rgba(31, 45, 80, 0.30), 0 0 18px -6px rgba(140, 178, 255, 0.40);
+}
+
+/* 消息入场：淡入 + 轻微上浮。一次性动画，结束后回到自然态。 */
+@keyframes dsh-bubble-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ───────────────────────── 7. 工具 / 状态卡片 ──────────────────────────── */
+/* v3：iWrAna_card / CY-8Ka_card 是细条状态卡（高约 26px），出现几十次，
+ * 之前各自 blur(20px)，是卡顿主因之一。改为纯半透明渐变 + 描边，
+ * 不再用 backdrop-filter（这么细的条子毛玻璃几乎看不出来）。
+ * 任务坞 nLMEza_dock 是真正的大卡片，保留毛玻璃（blur 12）。 */
+body .iWrAna_card,
+body .CY-8Ka_card {
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+body[data-ds-dark-theme] .iWrAna_card,
+body[data-ds-dark-theme] .CY-8Ka_card {
+  background: linear-gradient(180deg, rgba(30, 37, 57, 0.50), rgba(20, 26, 43, 0.48));
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 20px -14px rgba(2, 6, 16, 0.5);
+}
+
+body:not([data-ds-dark-theme]) .iWrAna_card,
+body:not([data-ds-dark-theme]) .CY-8Ka_card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.52));
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 20px -14px rgba(31, 45, 80, 0.20);
+}
+
+/* 任务坞：保留毛玻璃 */
+body .nLMEza_dock {
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+body[data-ds-dark-theme] .nLMEza_dock {
+  background: linear-gradient(180deg, rgba(30, 37, 57, 0.56), rgba(20, 26, 43, 0.54));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 12px 28px -16px rgba(2, 6, 16, 0.55);
+}
+
+body:not([data-ds-dark-theme]) .nLMEza_dock {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.54));
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 28px -16px rgba(31, 45, 80, 0.22);
+}
+
+/* 目标坞内条（进行中的目标）：磨砂玻璃胶囊，替代默认平涂深色灰块 */
+body .nLMEza_bar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .nLMEza_bar {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+}
+body:not([data-ds-dark-theme]) .nLMEza_bar {
+  background: rgba(255, 255, 255, 0.34) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+/* 目标坞内条上的操作小图标（详情/编辑/删除）：悬停微光 */
+body .nLMEza_iconBtn {
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .nLMEza_iconBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+body:not([data-ds-dark-theme]) .nLMEza_iconBtn:hover {
+  background: rgba(28, 36, 58, 0.08);
+}
+
+/* 侧栏导航按钮：玻璃胶囊 */
+body .hHd-Xa_iconButton,
+body .qDHVXG_iconButton,
+body .qDHVXG_searchButton,
+body .nL4_yW_sessionLogButton {
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+
+body[data-ds-dark-theme] .hHd-Xa_iconButton:hover,
+body[data-ds-dark-theme] .qDHVXG_iconButton:hover,
+body[data-ds-dark-theme] .qDHVXG_searchButton:hover {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+body:not([data-ds-dark-theme]) .hHd-Xa_iconButton:hover,
+body:not([data-ds-dark-theme]) .qDHVXG_iconButton:hover,
+body:not([data-ds-dark-theme]) .qDHVXG_searchButton:hover {
+  background: rgba(28, 36, 58, 0.06);
+}
+
+/* 「新会话」按钮：磨砂玻璃胶囊 */
+body .hHd-Xa_newSession {
+  background: linear-gradient(180deg, rgba(120, 170, 255, 0.22), rgba(86, 134, 254, 0.12)) !important;
+  border: 1px solid rgba(120, 170, 255, 0.28) !important;
+  color: #e3ecff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 6px 18px -8px rgba(86, 134, 254, 0.50) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .hHd-Xa_newSession:hover {
+  background: linear-gradient(180deg, rgba(120, 170, 255, 0.32), rgba(86, 134, 254, 0.20)) !important;
+  color: #f2f6ff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 24px -8px rgba(86, 134, 254, 0.62) !important;
+}
+body:not([data-ds-dark-theme]) .hHd-Xa_newSession {
+  background: linear-gradient(180deg, rgba(120, 170, 255, 0.30), rgba(86, 134, 254, 0.16)) !important;
+  border: 1px solid rgba(59, 110, 255, 0.28) !important;
+  color: #0b1a3d !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 6px 18px -8px rgba(59, 110, 255, 0.45) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+body:not([data-ds-dark-theme]) .hHd-Xa_newSession:hover {
+  background: linear-gradient(180deg, rgba(120, 170, 255, 0.40), rgba(86, 134, 254, 0.24)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 24px -8px rgba(59, 110, 255, 0.55) !important;
+}
+
+/* ───────────────────────── 8. 浮层：菜单 / 弹窗 / 弹出层 ────────────────── */
+/* 只在使用时出现，保留毛玻璃，blur 32 → 16，去掉 saturate。 */
+body [data-side]:not([data-side="sidebar"]),
+body [data-radix-popper-content],
+body [role="menu"],
+body [role="listbox"],
+body [role="dialog"],
+body [role="tooltip"],
+body [role="tree"],
+body [class$="_menu"] {
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+}
+
+body[data-ds-dark-theme] [role="menu"],
+body[data-ds-dark-theme] [role="listbox"],
+body[data-ds-dark-theme] [role="dialog"],
+body[data-ds-dark-theme] [role="tooltip"],
+body[data-ds-dark-theme] [data-side]:not([data-side="sidebar"]),
+body[data-ds-dark-theme] [data-radix-popper-content],
+body[data-ds-dark-theme] [role="tree"],
+body[data-ds-dark-theme] [class$="_menu"] {
+  background-color: rgba(24, 30, 48, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 24px 48px -16px rgba(2, 6, 16, 0.7) !important;
+}
+
+body:not([data-ds-dark-theme]) [role="menu"],
+body:not([data-ds-dark-theme]) [role="listbox"],
+body:not([data-ds-dark-theme]) [role="dialog"],
+body:not([data-ds-dark-theme]) [role="tooltip"],
+body:not([data-ds-dark-theme]) [data-side]:not([data-side="sidebar"]),
+body:not([data-ds-dark-theme]) [data-radix-popper-content],
+body:not([data-ds-dark-theme]) [role="tree"],
+body:not([data-ds-dark-theme]) [class$="_menu"] {
+  background-color: rgba(250, 252, 255, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98), 0 24px 48px -16px rgba(31, 45, 80, 0.3) !important;
+}
+
+/* 侧边栏拖拽把手：去掉被 [data-side] 误染的深色"黑条"，改成极细磨砂分隔线 */
+body .pI_x6G_handle {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+body .pI_x6G_handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.05);
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+body[data-ds-dark-theme] .pI_x6G_handle:hover::after,
+body[data-ds-dark-theme] .pI_x6G_handle:active::after {
+  background: rgba(120, 170, 255, 0.42);
+  box-shadow: 0 0 10px 0 rgba(120, 170, 255, 0.5);
+}
+body:not([data-ds-dark-theme]) .pI_x6G_handle:hover::after,
+body:not([data-ds-dark-theme]) .pI_x6G_handle:active::after {
+  background: rgba(70, 120, 220, 0.38);
+  box-shadow: 0 0 10px 0 rgba(70, 120, 220, 0.35);
+}
+
+/* ───────────────────────── 9. 排版与细节 ───────────────────────────────── */
+
+body {
+  --dsw-font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system,
+    BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--dsw-font-family);
+  -webkit-font-smoothing: antialiased;
+  /* v3：去掉 text-rendering: optimizeLegibility —— 在长对话文本上会显著
+   * 增加排版开销，是滚动/渲染发卡的一个次要因素。 */
+}
+
+/* 文本选中 */
+body ::selection {
+  background: rgba(86, 134, 254, 0.38);
+  color: inherit;
+}
+
+body:not([data-ds-dark-theme]) ::selection {
+  background: rgba(86, 134, 254, 0.25);
+}
+
+/* 键盘焦点环：柔光 */
+body :focus-visible {
+  outline: 2px solid rgba(125, 165, 255, 0.65);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ───────────────────────── 10. 入场动效 ────────────────────────────────── */
+
+body .wSkVaW_composerSeat {
+  animation: dsh-glass-rise 0.6s var(--ds-ease-in-out, ease) both;
+  animation-delay: 0.15s;
+}
+
+body .pI_x6G_sidebarCol {
+  animation: dsh-glass-fade 0.8s var(--ds-ease-in-out, ease) both;
+}
+/* 设置对话框是侧栏的子节点；入场动画让侧栏形成堆叠上下文，会把设置面板限制在聊天之下。
+   抬高侧栏层级（与中间/右侧区并排不重叠，安全），使设置面板真正浮到聊天内容之上。 */
+body .pI_x6G_sidebarCol {
+  position: relative;
+  z-index: 100;
+}
+
+body .pI_x6G_detailsCol {
+  animation: dsh-glass-fade 0.8s var(--ds-ease-in-out, ease) both;
+  animation-delay: 0.1s;
+}
+
+@keyframes dsh-glass-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dsh-glass-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ───────────────────────── 11. 侧栏任务栏动效 ──────────────────────────── */
+/* 会话行：悬停微右移 + 左侧柔光；选中项常亮描边；入场轻柔上浮淡入。 */
+body .YDXeBa_sessionRow {
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              transform var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+              box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+body .YDXeBa_sessionRow:hover {
+  transform: translateX(2px);
+}
+body[data-ds-dark-theme] .YDXeBa_sessionRow:hover {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 2px 0 0 rgba(125, 165, 255, 0.55);
+}
+body[data-ds-dark-theme] .YDXeBa_sessionRow.YDXeBa_selected {
+  box-shadow: inset 2px 0 0 rgba(125, 165, 255, 0.9);
+}
+body:not([data-ds-dark-theme]) .YDXeBa_sessionRow:hover {
+  background: rgba(28, 36, 58, 0.06);
+  box-shadow: inset 2px 0 0 rgba(59, 110, 255, 0.5);
+}
+body:not([data-ds-dark-theme]) .YDXeBa_sessionRow.YDXeBa_selected {
+  box-shadow: inset 2px 0 0 rgba(59, 110, 255, 0.9);
+}
+body .YDXeBa_sessionRow {
+  animation: dsh-glass-row-in 0.4s var(--ds-ease-in-out, ease) both;
+}
+@keyframes dsh-glass-row-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ───────────────────────── 12. 设置面板玻璃化 ──────────────────────────── */
+/* 面板：渐变玻璃背景 + 柔和光晕 + 描边 + 圆角，避免平铺的深色块显得单调。
+   底色保持近不透明，避免背景内容透出造成「叠字」凌乱。 */
+body[data-ds-dark-theme] .VOzbGW_panel {
+  background:
+    radial-gradient(120% 70% at 100% 0%, rgba(96, 140, 255, 0.16) 0%, rgba(96, 140, 255, 0) 46%),
+    radial-gradient(130% 80% at 0% 100%, rgba(150, 96, 255, 0.11) 0%, rgba(150, 96, 255, 0) 50%),
+    linear-gradient(180deg, rgba(22, 28, 48, 0.86) 0%, rgba(15, 19, 32, 0.78) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.10) inset,
+    0 0 0 1px rgba(96, 140, 255, 0.07) inset,
+    0 0 44px rgba(96, 140, 255, 0.07);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: dsh-glass-panel-in 0.28s var(--ds-ease-in-out, ease) both;
+}
+body[data-ds-dark-theme] .VOzbGW_mask {
+  background: rgba(4, 7, 15, 0.82) !important;
+}
+/* 导航标题：渐变字。 */
+body[data-ds-dark-theme] .VOzbGW_navTitle {
+  background: linear-gradient(92deg, #cbd7ff 0%, #e6d8ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+/* 导航项：悬停玻璃块 + 左侧柔光；选中渐变胶囊 + 外发光。 */
+body[data-ds-dark-theme] .VOzbGW_navCell {
+  border-radius: 12px;
+  transition: background 160ms var(--ds-ease-in-out, ease),
+              box-shadow 160ms var(--ds-ease-in-out, ease),
+              transform 160ms var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .VOzbGW_navCell:not(.VOzbGW_active):hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 2px 0 0 rgba(125, 165, 255, 0.5);
+  transform: translateX(2px);
+}
+body[data-ds-dark-theme] .VOzbGW_navCell.VOzbGW_active {
+  background: linear-gradient(90deg, rgba(96, 140, 255, 0.30), rgba(96, 140, 255, 0.05)) !important;
+  box-shadow:
+    0 6px 18px rgba(96, 140, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+/* 头部：细分隔线 + 顶部微亮。 */
+body[data-ds-dark-theme] .VOzbGW_header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+}
+/* 关闭按钮：悬停玻璃块。 */
+body[data-ds-dark-theme] .VOzbGW_close {
+  border-radius: 9px;
+  transition: background 150ms var(--ds-ease-in-out, ease), box-shadow 150ms var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .VOzbGW_close:hover {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.10);
+}
+/* 选项行：圆角卡片 + 悬停微亮，避免平铺。 */
+body[data-ds-dark-theme] .VOzbGW_options [class$="_row"] {
+  border-radius: 14px;
+  transition: background 150ms var(--ds-ease-in-out, ease), box-shadow 150ms var(--ds-ease-in-out, ease);
+}
+body[data-ds-dark-theme] .VOzbGW_options [class$="_row"]:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── 浅色主题 ── */
+body:not([data-ds-dark-theme]) .VOzbGW_panel {
+  background:
+    radial-gradient(120% 70% at 100% 0%, rgba(96, 140, 255, 0.14) 0%, rgba(96, 140, 255, 0) 46%),
+    radial-gradient(130% 80% at 0% 100%, rgba(150, 96, 255, 0.10) 0%, rgba(150, 96, 255, 0) 50%),
+    linear-gradient(180deg, rgba(252, 254, 255, 0.88) 0%, rgba(248, 251, 255, 0.82) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 30px 80px rgba(40, 60, 100, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 0 0 1px rgba(96, 140, 255, 0.10) inset;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: dsh-glass-panel-in 0.28s var(--ds-ease-in-out, ease) both;
+}
+body:not([data-ds-dark-theme]) .VOzbGW_mask {
+  background: rgba(30, 40, 60, 0.48) !important;
+}
+body:not([data-ds-dark-theme]) .VOzbGW_navTitle {
+  background: linear-gradient(92deg, #2b6cff 0%, #7a3bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+body:not([data-ds-dark-theme]) .VOzbGW_navCell {
+  border-radius: 12px;
+  transition: background 160ms var(--ds-ease-in-out, ease),
+              box-shadow 160ms var(--ds-ease-in-out, ease),
+              transform 160ms var(--ds-ease-in-out, ease);
+}
+body:not([data-ds-dark-theme]) .VOzbGW_navCell:not(.VOzbGW_active):hover {
+  background: rgba(59, 110, 255, 0.06);
+  box-shadow: inset 2px 0 0 rgba(59, 110, 255, 0.5);
+  transform: translateX(2px);
+}
+body:not([data-ds-dark-theme]) .VOzbGW_navCell.VOzbGW_active {
+  background: linear-gradient(90deg, rgba(59, 110, 255, 0.22), rgba(59, 110, 255, 0.04)) !important;
+  box-shadow:
+    0 6px 18px rgba(59, 110, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+body:not([data-ds-dark-theme]) .VOzbGW_header {
+  border-bottom: 1px solid rgba(40, 60, 100, 0.10);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+}
+body:not([data-ds-dark-theme]) .VOzbGW_close {
+  border-radius: 9px;
+  transition: background 150ms var(--ds-ease-in-out, ease), box-shadow 150ms var(--ds-ease-in-out, ease);
+}
+body:not([data-ds-dark-theme]) .VOzbGW_close:hover {
+  background: rgba(40, 60, 100, 0.08);
+  box-shadow: 0 0 14px rgba(40, 60, 100, 0.10);
+}
+body:not([data-ds-dark-theme]) .VOzbGW_options [class$="_row"] {
+  border-radius: 14px;
+  transition: background 150ms var(--ds-ease-in-out, ease), box-shadow 150ms var(--ds-ease-in-out, ease);
+}
+body:not([data-ds-dark-theme]) .VOzbGW_options [class$="_row"]:hover {
+  background: rgba(40, 60, 100, 0.03);
+}
+
+@keyframes dsh-glass-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ───────────────────────── 13. 无障碍：减弱动效 ────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  body::after,
+  #root::before {
+    animation: none !important;
+  }
+  body .wSkVaW_composerSeat,
+  body .pI_x6G_sidebarCol,
+  body .pI_x6G_detailsCol,
+  body .VOzbGW_panel {
+    animation: none !important;
+  }
+  body .uV2eYG_card {
+    transition: none !important;
+  }
+  body .gdEzaW_bubble {
+    animation: none !important;
+    transition: none !important;
+  }
+  body .YDXeBa_sessionRow {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ═══════════ 兼容补丁 v3.1（2026-10-07，本机 0.2.0-rc.2 实测） ═══════════
+ * 逐类核对：打开运行中的 3081，getElementsByClassName 比对 glass.css 依赖的 37 个类。
+ * 19 个仍命中（frame/三栏/header/tabs/composer card/CY-8Ka_card/iWrAna_card/YDXeBa_sessionRow…），
+ * 下面这些已换代，按现行 DOM 复制规则并改写类名：
+ *   .pI_x6G_detailsCol → .pI_x6G_rightbarCol   （右栏改名）
+ *   .gdEzaW_bubble     → .Sixlwa_bubble        （消息气泡）
+ *   .qDHVXG_searchButton/.qDHVXG_iconButton → .bhn1Oq_searchButton/.bhn1Oq_iconButton
+ *   .nLMEza_dock/.bar/.iconBtn → .uV2eYG_dock   （任务坞 → 输入框下方 dock）
+ *   .nL4_yW_sessionLogButton → .nL4_yW_moreButton
+ * 未映射：VOzbGW_*（设置弹层，当前 DOM 里只剩 triggerRow/trigger，弹层类名待开一次设置页才知道）
+ *         .uV2eYG_mirror / .uV2eYG_backdrop（条件渲染，当前未挂载，规则保留为无害空转）
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* compat: .pI_x6G_detailsCol → .pI_x6G_rightbarCol */
+body[data-ds-dark-theme] .pI_x6G_rightbarCol {
+  background: linear-gradient(180deg, rgba(20, 26, 43, 0.56), rgba(12, 16, 27, 0.54));
+  border-left: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+/* compat: .pI_x6G_detailsCol → .pI_x6G_rightbarCol */
+body:not([data-ds-dark-theme]) .pI_x6G_rightbarCol {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.40));
+  border-left: 1px solid rgba(255, 255, 255, 0.72);
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body .Sixlwa_bubble {
+  border: 1px solid transparent;
+  box-shadow: 0 8px 20px -12px rgba(2, 6, 16, 0.5);
+  border-radius: 14px;
+  animation: dsh-bubble-in 300ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition:
+  border-color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+  box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+  transform var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body .Sixlwa_bubble:hover {
+  transform: translateY(-1px);
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body[data-ds-dark-theme] .Sixlwa_bubble {
+  border-color: rgba(125, 165, 255, 0.22);
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body[data-ds-dark-theme] .Sixlwa_bubble:hover {
+  border-color: rgba(125, 165, 255, 0.42);
+  box-shadow: 0 12px 28px -12px rgba(2, 6, 16, 0.55), 0 0 18px -6px rgba(125, 165, 255, 0.35);
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body:not([data-ds-dark-theme]) .Sixlwa_bubble {
+  border-color: rgba(255, 255, 255, 0.80);
+  box-shadow: 0 8px 20px -12px rgba(31, 45, 80, 0.25);
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body:not([data-ds-dark-theme]) .Sixlwa_bubble:hover {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 12px 28px -12px rgba(31, 45, 80, 0.30), 0 0 18px -6px rgba(140, 178, 255, 0.40);
+}
+
+/* compat: .nLMEza_dock → .uV2eYG_dock */
+body .uV2eYG_dock {
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+/* compat: .nLMEza_dock → .uV2eYG_dock */
+body[data-ds-dark-theme] .uV2eYG_dock {
+  background: linear-gradient(180deg, rgba(30, 37, 57, 0.56), rgba(20, 26, 43, 0.54));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+  inset 0 1px 0 rgba(255, 255, 255, 0.14),
+  0 12px 28px -16px rgba(2, 6, 16, 0.55);
+}
+
+/* compat: .nLMEza_dock → .uV2eYG_dock */
+body:not([data-ds-dark-theme]) .uV2eYG_dock {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.54));
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+  inset 0 1px 0 rgba(255, 255, 255, 0.9),
+  0 12px 28px -16px rgba(31, 45, 80, 0.22);
+}
+
+/* compat: .nLMEza_bar → .uV2eYG_dock */
+body .uV2eYG_dock {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+
+/* compat: .nLMEza_bar → .uV2eYG_dock */
+body[data-ds-dark-theme] .uV2eYG_dock {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+}
+
+/* compat: .nLMEza_bar → .uV2eYG_dock */
+body:not([data-ds-dark-theme]) .uV2eYG_dock {
+  background: rgba(255, 255, 255, 0.34) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+/* compat: .nLMEza_iconBtn → .uV2eYG_dock */
+body .uV2eYG_dock {
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+  color var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+
+/* compat: .nLMEza_iconBtn → .uV2eYG_dock */
+body[data-ds-dark-theme] .uV2eYG_dock:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* compat: .nLMEza_iconBtn → .uV2eYG_dock */
+body:not([data-ds-dark-theme]) .uV2eYG_dock:hover {
+  background: rgba(28, 36, 58, 0.08);
+}
+
+/* compat: .qDHVXG_iconButton .qDHVXG_searchButton .nL4_yW_sessionLogButton → .bhn1Oq_iconButton .bhn1Oq_searchButton .nL4_yW_moreButton */
+body .hHd-Xa_iconButton, body .bhn1Oq_iconButton, body .bhn1Oq_searchButton, body .nL4_yW_moreButton {
+  transition: background var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease),
+  box-shadow var(--ds-transition-duration-fast, 150ms) var(--ds-ease-in-out, ease);
+}
+
+/* compat: .qDHVXG_iconButton .qDHVXG_searchButton → .bhn1Oq_iconButton .bhn1Oq_searchButton */
+body[data-ds-dark-theme] .hHd-Xa_iconButton:hover, body[data-ds-dark-theme] .bhn1Oq_iconButton:hover, body[data-ds-dark-theme] .bhn1Oq_searchButton:hover {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+/* compat: .qDHVXG_iconButton .qDHVXG_searchButton → .bhn1Oq_iconButton .bhn1Oq_searchButton */
+body:not([data-ds-dark-theme]) .hHd-Xa_iconButton:hover, body:not([data-ds-dark-theme]) .bhn1Oq_iconButton:hover, body:not([data-ds-dark-theme]) .bhn1Oq_searchButton:hover {
+  background: rgba(28, 36, 58, 0.06);
+}
+
+/* compat: .pI_x6G_detailsCol → .pI_x6G_rightbarCol */
+body .pI_x6G_rightbarCol {
+  animation: dsh-glass-fade 0.8s var(--ds-ease-in-out, ease) both;
+  animation-delay: 0.1s;
+}
+
+/* compat: .pI_x6G_detailsCol → .pI_x6G_rightbarCol */
+body .wSkVaW_composerSeat, body .pI_x6G_sidebarCol, body .pI_x6G_rightbarCol, body .VOzbGW_panel {
+  animation: none !important;
+}
+
+/* compat: .gdEzaW_bubble → .Sixlwa_bubble */
+body .Sixlwa_bubble {
+  animation: none !important;
+  transition: none !important;
+}

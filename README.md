@@ -13,6 +13,7 @@
 | `forks/<name>/` | 对上游**整包**的 fork 快照（改动集中、量大） | （暂空：`dsh-web-restart` 已删，重写中） |
 | `patches/<pkg>-<ver>/` | 对上游包的**局部补丁**（unified diff + 原版版本号） | `dsh-pocket-2.10.6` |
 | `files/` | 不属于某个包的独立文件 | `hooks/tool-budget.sh`、`profile/*` |
+| `skins/<name>/` | ⭐ **skin-center 用户皮肤**（`skin.json` + `skin.css`，装进 `~/.dsh/skins/<name>/`，不碰 node_modules、升级不丢） | `liquid-glass` |
 | `docs/CHANGES.md` | 每处改动的动机 / 验证 / 上游 issue | — |
 
 **绝不见库**：`session.key`、PIN（`token`/`token-lan`）、`web.env`、`.credentials.yaml`
@@ -59,6 +60,7 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 | `plugins/panel-drawer` | 左侧栏二级抽屉：面板入口收进一个图标（技能中心/任务看板/上下文洞察默认收编），管理页拖动选择显隐，中英双语 | 自研 |
 | `files/hooks/tool-budget.sh` | 调研预算闸（重复 + **换皮重复**判重，60/150/300/500 分档提醒） | 自研 |
 | `files/profile/` | web profile 的 `cordis.patch.yml` + `package.json`（hooks 桥接 / llm-mimo / 默认模型 / 本地 bundle 依赖） | 本机配置快照 |
+| `skins/liquid-glass` | 液态玻璃皮肤（极光背景 + 玻璃面板 + 气泡动画），含按 0.2.0-rc.2 现行 DOM 写的类名兼容补丁 | 社区主题包 `dsh-liquid-glass-theme` 改造（只换载体，样式逻辑未改） |
 
 动机、验证记录、上游 issue 链接 → **[docs/CHANGES.md](docs/CHANGES.md)**。
 

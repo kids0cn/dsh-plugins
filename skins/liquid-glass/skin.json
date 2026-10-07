@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.linxin666.org/dsh-skin/v2.json",
+  "skinManifestVersion": 2,
+  "id": "liquid-glass",
+  "name": "液态玻璃",
+  "nameEn": "Liquid Glass",
+  "version": "1.0.0",
+  "author": "社区主题包 dsh-liquid-glass-theme",
+  "tagline": "蓝紫极光环境光 · 半透明玻璃面板 · 气泡入场动画 · 深浅双主题",
+  "description": "Apple Liquid Glass 风格：流动环境光（Aurora 光斑，transform/opacity 动画、13s/17s 漂移 + 呼吸）之上叠加半透明磨砂面板，以内高光描边与外层柔影刻画玻璃边缘；先重映射 --dsw-alias-* / --dsw-specific-* 设计令牌，再对关键表面玻璃化；backdrop-filter 只保留在顶栏与小面积表面以保滚动流畅，prefers-reduced-motion 下全部降级。由社区主题包 dsh-liquid-glass-theme（原 dist 注入式）改造为 skin-center 皮肤，避免手改 node_modules 被 reify 冲掉。已知限制：组件级玻璃规则基于前端 0.1.0-rc.7 的哈希类名，在 0.2.0-rc.2 已换代、部分不命中，当前主要呈现极光背景与配色令牌效果。",
+  "tags": ["glass", "liquid-glass", "aurora", "translucent", "blur", "dark", "light-dark", "animated"],
+  "accent": "#8b5cf6",
+  "order": 150,
+  "attribution": "主题与样式来自社区包 dsh-liquid-glass-theme（glass.css / README / apply.js），本机仅做载体改造（dist 注入 → skin-center 皮肤），样式逻辑未改",
+  "contributes": {
+    "stylesheet": "skin.css"
+  }
+}
