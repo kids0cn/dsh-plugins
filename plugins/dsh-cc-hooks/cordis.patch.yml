@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-cc-hooks
+      name: '@local/dsh-cc-hooks'

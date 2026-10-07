@@ -129,3 +129,11 @@ npm scope 与仓库作者不同名）。上游 issue：
 - 上游 issue：`dsh-web-restart` #2 提过；pocket 的两处**未提 issue**；Token 银行 mimo 已提 [dsh-web#1831](https://github.com/zhu1090093659/dsh-web/issues/1831)（2026-10-07）；
   ui-layout 缓动失效已提 harness [Discussions #8882](https://github.com/deepseek-ai/deepseek-harness/discussions/8882)（该仓 Issues 关闭）
 - 未做：把 `dsh-web-restart` 的改动回流上游 / 建 GitHub fork（用户拍板：只存快照靠重放）
+
+## dsh-cc-hooks：Claude hook 桥下线，三件套迁原生（2026-10-07）
+
+- **动机**：桥的 PostToolUse matcher 字面大小写（`Write|Edit` ≠ `write|edit`）→ `post-edit-commit.sh` 在 DSH 静默失效；桥的 PostToolUse/Stop 执行路径从未真正跑通过。用户拍板：不走桥。
+- **改动**：新增 `plugins/dsh-cc-hooks/`（原生触发 SessionStart/PostToolUse/Stop，执行体复用 `~/.claude/hooks/` 原脚本）；profile `cordis.patch.yml` 移除 `hooks-claude-code` insert；`dsh-guards` 的两闸提醒补同款命名日志。
+- **顺手修的**：`task-start-snapshot.sh capture` 在 Claude 侧从未接线（WIP 快照守卫一直是 no-op）——迁移时在 SessionStart 补上。
+- **命名日志**（用户要求，供统计功能）：事件流 `hook/invoked|result` 的 `handlerId`=脚本名（非序号）+ 文件 `~/.dsh/hooks-stats.jsonl`（含 `plugin/apply` 启动信标）。
+- **验证**：`node --check` 双绿；**装载与运行验证待 `sudo systemctl restart dsh-web` 后做**（已知缺口见插件 README：compact 不重注、`turn/end` payload 形状未实证）。

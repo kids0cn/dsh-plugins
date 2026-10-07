@@ -15,19 +15,15 @@
     provider: mimo
     model: mimo-v2.6-flash
 
-# Claude Code hook 桥接：复用 ~/.claude/settings.json 的 hooks（只读不改）
-# - SessionStart → hermes-context.js（注入共享记忆索引）
-# - PostToolUse Write|Edit → post-edit-commit.sh（只 git add 不 commit）
-# - Stop → stop-commit.sh（会话结束兜底提交）
-# 需要 shell（bash-sandbox 顶层提供）+ sessionProjections（session-projection 顶层提供）
-- insert:
-    - id: hooks-claude-code
-      name: '@deepseek-ai/dsh-hooks-claude-code'
-      config:
-        configPath: /home/developer/.claude/settings.json
+# Claude Code hook 桥接已下线（2026-10-07 用户拍板：不走桥）—— 三件套迁原生 @local/dsh-cc-hooks：
+# SessionStart(hermes-context + WIP快照) / PostToolUse 编辑后 git add / Stop 回合兜底提交，
+# 附带 hook 名字的双路日志（会话事件流 handlerId=脚本名 + ~/.dsh/hooks-stats.jsonl）。
+# 下线原因：桥 matcher 字面大小写不匹配 write|edit → post-edit-commit 静默失效（2026-10-07 读源码实锤）。
+# 迁移记录：~/test_mimo/dsh-plugins/plugins/dsh-cc-hooks/README.md
 - id: ui-theme
   name: "@deepseek-ai/dsh-client-ui-theme"
   config:
+    preference: dark
     fontSize: 14
 - id: ui-chat
   name: "@deepseek-ai/dsh-client-ui-chat"
@@ -37,18 +33,31 @@
 # llm-mimo（MiMo 原生适配器）：复用已存的凭据 ref（本机无 MIMO_NORMAL_API_KEY）。
 # 端点 = token-plan-cn 网关（api.xiaomimimo.com 对该 key 返 401，实测于 2026-10-04）。
 # 目录 = GET /v1/models 中的 4 个聊天模型；模态按裸探针实锤勾选：
-#   v2.6-flash/pro、v2.5 → image/audio/video 全通；v2.5-pro → 纯文本（三模态 404）。
+#   chat 面裸探针 v2.6-flash/pro、v2.5 → image/audio/video 全通；v2.5-pro → 纯文本（三模态 404）。
+#   2026-10-06 起走 anthropic 面（会静默吞 audio/video）→ 声明收紧为 text+image，见下。
 # asr/tts/voiceclone/voicedesign 走专用接口，不进 chat 目录。
 - id: llm-mimo
   name: "@mimo-codex/dsh-llm-mimo"
   config:
     apiKeyEnv: XIAOMI_TOKEN_PLAN_CN_API_KEY
-    baseURL: https://token-plan-cn.xiaomimimo.com/v1
+    # 2026-10-06 用户拍板：直接走 anthropic 协议面（与 Claude Code 同路），零代码改动——
+    # 上游插件本就实现 anthropic Messages（apiFormat: anthropic），且 anthropic 面的
+    # tool 分支天生带图（input() 含 image 块），没有 chat 面那个丢图 bug（上游 issue #1）。
+    # 依据：chat 面长历史+任意图必静默挂死（777 条探针 hdr 5.6s 后 95s 零字节；100 条才通），
+    # anthropic 面真 body 595 条+69 工具+图 = 36s 完整流（2026-10-06 实测）。
+    apiFormat: anthropic
+    baseURL: https://token-plan-cn.xiaomimimo.com/anthropic
+    # 2026-10-06 用户拍板：开思考（= 官方文档「默认开启」，恢复插件原生行为，不关不改）。
+    # 代价（文档自述「开启深度思考会增加响应延迟」+ 本机 A/B 62.7s vs 25.3s）：
+    # 大回合首字可能 60s+；且开思考时工具历史必须完整回传 reasoning_content 否则 400。
+    # 若再现 90s 级卡顿，改回 thinking: disabled 即可（一行）。
+    thinking: enabled
+    # anthropic 面静默吞 audio/video → 模态收紧为 text+image，让 dsh 显式报错而非丢数据。
     modelsJson: '[{"id":"mimo-v2.6-flash","name":"MiMo V2.6
-      Flash","inputModalities":["text","image","audio","video"]},{"id":"mimo-v2.6-pro","name":"MiMo
+      Flash","inputModalities":["text","image"]},{"id":"mimo-v2.6-pro","name":"MiMo
       V2.6
-      Pro","inputModalities":["text","image","audio","video"]},{"id":"mimo-v2.5","name":"MiMo
-      V2.5","inputModalities":["text","image","audio","video"]},{"id":"mimo-v2.5-pro","name":"MiMo
+      Pro","inputModalities":["text","image"]},{"id":"mimo-v2.5","name":"MiMo
+      V2.5","inputModalities":["text","image"]},{"id":"mimo-v2.5-pro","name":"MiMo
       V2.5 Pro","inputModalities":["text"]}]'
 - id: permission
   name: "@deepseek-ai/dsh-permission-presets"
@@ -69,3 +78,59 @@
   config:
     titleBarScheme: web
     titleBarCompat: false
+- id: ui-settings
+  name: "@deepseek-ai/dsh-client-ui-settings"
+  config:
+    enabled: true
+
+# meow-memory 首次设置：用户平时用中文交流 → 记忆导引/工具描述/记忆条目统一中文。
+# 想换语言改这里的 promptLang（'zh' / 'en'），再重载该插件或重启 dsh。
+- id: meow-memory
+  name: meow-memory
+  config:
+    promptLang: 'zh'
+- id: ui-conversation
+  name: "@deepseek-ai/dsh-client-ui-conversation"
+  config:
+    busyEnter: steer
+- id: web-ui-skin-center
+  name: "@linxin666/dsh-client-ui-skin-center"
+  config:
+    skin-wallpaper:
+      enabled: false
+    skin-custom-theme:
+      applied: false
+- id: web-ui-pet
+  name: "@linxin666/dsh-pet"
+  config:
+    visible: true
+    size: 160
+    right: 49
+    bottom: 75
+    petId: whale-girl-refined
+    enabled: false
+- id: web-ui-market
+  name: "@linxin666/dsh-web-all/market"
+  config:
+    plugin: "@linxin666/dsh-client-ui-market"
+    enabled: true
+
+# dsh-ego-browser：WSL2 无系统 Chrome（Ubuntu 24.04 只有 snap 包，装不了），
+# 指向 playwright 缓存里的 Chrome for Testing（2026-10-06 实测 headless 可跑）。
+# chromeArgs 是字符串不是数组（lib/index.js 3037 行按 string 解析）。
+- id: ego-browser
+  name: dsh-ego-browser
+  config:
+    chromePath: /home/developer/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome
+    chromeArgs: --no-sandbox --disable-gpu --disable-dev-shm-usage
+    idleTimeoutMin: 25
+- id: web-ui-task-board
+  name: "@linxin666/dsh-web-all/task-board"
+  config:
+    plugin: "@linxin666/dsh-client-ui-task-board"
+    enabled: false
+- id: web-ui-remote-web-ui
+  name: "@linxin666/dsh-web-all/remote-web-ui"
+  config:
+    plugin: "@linxin666/dsh-remote-web-ui"
+    enabled: false

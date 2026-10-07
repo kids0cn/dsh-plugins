@@ -2,12 +2,23 @@
   "name": "dsh-profile-web",
   "private": true,
   "dependencies": {
-    "@local/dsh-monitor": "link:/home/developer/test_mimo/dsh-monitor-bundle",
-    "@local/sidebar-auto-collapse": "link:/home/developer/test_mimo/sidebar-auto-collapse",
+    "@changfenhuang/dsh-genui": "github:omdsh-dev/dsh-genui",
+    "@linxin666/dsh-client-ui-skill-explorer": "^0.4.5",
+    "@local/agent-hud": "link:/home/developer/test_mimo/agent-hud",
+    "@local/better-dsh-web-restart": "link:/home/developer/test_mimo/better-dsh-web-restart",
+    "@local/dsh-cc-hooks": "link:/home/developer/test_mimo/dsh-plugins/plugins/dsh-cc-hooks",
+    "@local/dsh-guards": "link:/home/developer/test_mimo/dsh-guards",
+    "@local/dsh-monitor": "link:/home/developer/local-packages/dsh-monitor-bundle",
+    "@local/panel-drawer": "link:/home/developer/test_mimo/panel-drawer",
+    "@local/sidebar-auto-collapse": "link:/home/developer/local-packages/sidebar-auto-collapse",
     "@mimo-codex/dsh-llm-mimo": "github:dalizi2333/dsh-llm-mimo",
     "dsh-better-sidebar": "0.24.1",
+    "dsh-context": "^0.63.0",
+    "dsh-ego-browser": "github:Fisfzy/ego-browser",
     "dsh-pocket": "^2.10.6",
-    "dsh-web-restart": "github:1123762794/dsh-web-restart"
+    "dsh-smooth-stream": "github:Laplace-bit/dsh-smooth-stream",
+    "dsh-web": "github:zhu1090093659/dsh-web-ui#main",
+    "meow-memory": "github:Phant0Meow/dsh-meow-memory"
   },
   "dsh": {
     "profile": {
@@ -17,10 +28,21 @@
         "@deepseek-ai/dsh-experimental-auto-review",
         "dsh-pocket",
         "@mimo-codex/dsh-llm-mimo",
-        "dsh-web-restart",
         "@local/dsh-monitor",
         "dsh-better-sidebar",
-        "@local/sidebar-auto-collapse"
+        "@local/sidebar-auto-collapse",
+        "dsh-smooth-stream",
+        "meow-memory",
+        "dsh-context",
+        "dsh-web",
+        "@changfenhuang/dsh-genui",
+        "@linxin666/dsh-client-ui-skill-explorer",
+        "dsh-ego-browser",
+        "@local/panel-drawer",
+        "@local/better-dsh-web-restart",
+        "@local/dsh-guards",
+        "@local/agent-hud",
+        "@local/dsh-cc-hooks"
       ]
     }
   }
