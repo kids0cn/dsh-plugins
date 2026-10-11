@@ -32,21 +32,23 @@ else
   fi
 fi
 
-echo "== 2/4 patches/*-0.4.5 Token 银行铸造 mimo"
-# profile 挂的是聚合行，浏览器半区装的是 dsh-web-all（子插件 client 内联），
-# 独立包 dsh-usage 那份是死码——两包都打，任一缺失都能报出来。
+echo "== 2/4 Token 银行铸造 mimo —— 上游 0.4.6 起已合入，只做存活检测"
+# 2026-10-11 实测：@linxin666/* 0.4.6 原样采纳了本仓库的两处改动（4 条 usage.bank.* MiMo 文案 +
+# mimo 路由计入铸造），且实现更严谨——上游用 EXTRA_MINT_ROUTE_IDS = ["mimo"] + mintsWhaleYuan()，
+# 并把 mimo 排除在 cost 之外（MiMo 无价目表），比本仓库 0.4.5 补丁（mimo 也进 cost）更好。
+# → 0.4.6 及以上**不再打补丁**（硬打会报 Reversed/previously applied，还会把 cost 口径改差）。
+#   patches/<pkg>-0.4.5/ 仅作历史存档保留。降回 <0.4.6 时走老逻辑，仍可用那两个 diff 重放。
 for P in dsh-web-all dsh-usage; do
   TARGET="$NM/@linxin666/$P/lib/client.js"
-  PATCH="$HERE/patches/$P-0.4.5/$P-0.4.5.patch"
-  if [ ! -f "$TARGET" ]; then
-    warn "@linxin666/$P 未安装，跳过"
+  [ -f "$TARGET" ] || { warn "@linxin666/$P 未安装，跳过"; continue; }
+  VER=$(node -pe "require('$NM/@linxin666/$P/package.json').version" 2>/dev/null || echo "?")
+  if grep -q 'EXTRA_MINT_ROUTE_IDS' "$TARGET"; then
+    ok "@linxin666/$P@$VER：mimo 铸造判定在位（上游 0.4.6 合入，无需补丁）"
   elif grep -q 'row.provider === "mimo"' "$TARGET"; then
-    ok "@linxin666/$P 已打过补丁，跳过"
-  elif patch -d "$NM/@linxin666/$P" -p1 --forward --dry-run < "$PATCH" >/dev/null 2>&1; then
-    patch -d "$NM/@linxin666/$P" -p1 --forward < "$PATCH" >/dev/null && ok "@linxin666/$P 补丁已应用" || err "@linxin666/$P patch 执行失败"
+    ok "@linxin666/$P@$VER：mimo 铸造判定在位（本机 0.4.5 补丁）"
   else
-    err "@linxin666/$P 补丁无法应用（版本可能已变）：对照 $PATCH 与该目录 upstream-package.json，"
-    note "手动移植：lib/client.js 里 deepseekVoucherData 的过滤 + 4 条 usage.bank.* 文案"
+    err "@linxin666/$P@$VER：mimo 铸造判定缺失（既无上游实现也无本机补丁）→ 见 patches/$P-*/"
+    note "手动移植：lib/client.js 里 voucherData 的 provider 过滤 + 4 条 usage.bank.* 文案"
   fi
 done
 

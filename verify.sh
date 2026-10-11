@@ -51,11 +51,20 @@ for p in dsh-monitor sidebar-auto-collapse panel-drawer; do
   if [ -f "$HERE_PLUG/plugins/$p/package.json" ]; then ok "plugins/$p"; else err "仓库缺 plugins/$p"; fi
 done
 
-echo "== 7) Token 银行 mimo 铸造补丁"
-if grep -q 'row.provider === "mimo"' "$NM/@linxin666/dsh-web-all/lib/client.js" 2>/dev/null; then
-  ok "dsh-web-all client 含 mimo 铸造判定（聚合包是真被加载的那份）"
+echo "== 7) Token 银行 mimo 铸造判定（0.4.6 起上游合入，检测代替打补丁）"
+T="$NM/@linxin666/dsh-web-all/lib/client.js"
+if grep -q 'EXTRA_MINT_ROUTE_IDS' "$T" 2>/dev/null; then
+  ok "dsh-web-all 含 mimo 铸造判定（上游 0.4.6 实现，聚合包是真被加载的那份）"
+elif grep -q 'row.provider === "mimo"' "$T" 2>/dev/null; then
+  ok "dsh-web-all 含 mimo 铸造判定（本机 0.4.5 补丁）"
 else
-  err "补丁缺失 → ./apply.sh 后重启（只改 dsh-usage 无效，client 内联在聚合包里）"
+  err "mimo 铸造判定缺失 → ./apply.sh 后重启（只改 dsh-usage 无效，client 内联在聚合包里）"
+fi
+echo "== 7b) meow-memory 反思轮折叠修复（上游 PR #47 未合入，靠重放）"
+if grep -q 'node.kind !== "context" && node.kind !== "turn-trigger"' "$NM/meow-memory/lib/client.js" 2>/dev/null; then
+  ok "isMemoryPrompt 认 turn-trigger"
+else
+  err "折叠锚点修复缺失 → ~/test_mimo/meow-memory-fold-fix/apply.sh（prepare 重建必冲掉它）"
 fi
 
 if [ "${PUBLIC:-0}" = "1" ]; then

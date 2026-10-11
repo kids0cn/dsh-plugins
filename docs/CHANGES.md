@@ -107,6 +107,13 @@ npm scope 与仓库作者不同名）。上游 issue：
 
 > 教训：**热补丁前先 grep 老字符串，确认代码真在哪个 bundle 里被加载**——"改了文件"不等于"改了运行的代码"。
 
+> **✅ 2026-10-11：上游 0.4.6 已原样合入本节两处改动**（`@linxin666/*` 0.4.5 → 0.4.6 家族升级时实测）。
+> 上游实现比本仓库更好：用 `const EXTRA_MINT_ROUTE_IDS = ["mimo"]` + `mintsWhaleYuan(provider)` 收口，
+> 并在 `voucherData()` 里**把 mimo 排除在 `cost` 之外**（MiMo 无价目表，消费估算口径不被污染）——
+> 本仓库 0.4.5 补丁会让 mimo 行也累加 `cost`，是较差的口径。代码注释点名 issue #1772（记账口径 vs 凭据/探测路径）。
+> **处置**：`patches/<pkg>-0.4.5/` 保留作历史存档，`apply.sh` 2/4 与 `verify.sh` 7 改成「检测 `EXTRA_MINT_ROUTE_IDS`
+> 在位即通过」，0.4.6+ **不再打补丁**（硬打会报 Reversed/previously applied 且把 cost 口径改差）；降回 <0.4.6 仍可用老 diff 重放。
+
 ## 9. `skins/liquid-glass` —— 液态玻璃皮肤（2026-10-07）
 
 来源：社区主题包 `dsh-liquid-glass-theme`（`glass.css` 40K + `apply.js` + README），

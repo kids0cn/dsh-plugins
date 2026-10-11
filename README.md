@@ -54,7 +54,7 @@ sudo systemctl restart dsh-web   # HMR 不看源码（root: []），不重启不
 | 路径 | 是什么 | 来源 |
 |---|---|---|
 | `patches/dsh-pocket-2.10.6` | ① `home` 兜底（隧道自动恢复死码）② `sessionKey` 落盘（重启免重输 PIN） | npm `dsh-pocket@2.10.6` |
-| `patches/dsh-web-all-0.4.5`、`patches/dsh-usage-0.4.5` | Token 银行鲸元券把 `mimo` 路由计入铸造（**聚合包内联了子插件 client，两包都要打**，只改 dsh-usage 无效） | npm `@linxin666/dsh-web-all@0.4.5`、`@linxin666/dsh-usage@0.4.5` |
+| `patches/dsh-web-all-0.4.5`、`patches/dsh-usage-0.4.5` | Token 银行鲸元券把 `mimo` 路由计入铸造（**聚合包内联了子插件 client，两包都要打**，只改 dsh-usage 无效）。**✅ 2026-10-11 上游 0.4.6 已原样合入并实现更优 → 0.4.6+ 不再打，`apply.sh`/`verify.sh` 改为检测 `EXTRA_MINT_ROUTE_IDS` 在位；此目录降回 <0.4.6 时用** | npm `@linxin666/dsh-web-all@0.4.5`、`@linxin666/dsh-usage@0.4.5` |
 | `plugins/dsh-monitor` | 侧边栏监视面板：后台任务 / 会话 / 系统负载 | 自研 |
 | `plugins/sidebar-auto-collapse` | 侧边栏自动折叠 + 悬停展开（设置页「自动收起左侧栏」开关，含 27 项自测） | 自研 |
 | `plugins/panel-drawer` | 左侧栏二级抽屉：面板入口收进一个图标（技能中心/任务看板/上下文洞察默认收编），管理页拖动选择显隐，中英双语 | 自研 |
