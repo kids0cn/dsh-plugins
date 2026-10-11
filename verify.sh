@@ -9,17 +9,25 @@ FAIL=0
 ok()   { printf '✅ %s\n' "$*"; }
 err()  { printf '❌ %s\n' "$*"; FAIL=1; }
 
-echo "== 1) host 装载探针（/dsh-health 应含 version/branch/pid）"
-H=$(curl -s --max-time 3 http://127.0.0.1:3081/dsh-health || true)
-if echo "$H" | grep -q '"version":"wsl-'; then
-  ok "$H"
+echo "== 1) host 存活 + 新码装载（restart-dsh/status 探活 + 服务启动时间）"
+S=$(curl -s --max-time 3 http://127.0.0.1:3081/restart-dsh/status || true)
+if echo "$S" | grep -q '"ok":true'; then
+  ok "status: $S"
 else
-  err "health 异常或未装载新码：${H:-（无响应）} → 没重启？sudo systemctl restart dsh-web"
+  err "服务无响应：${S:-（无响应）} → systemctl status dsh-web"
+fi
+if systemctl is-active -q dsh-web 2>/dev/null; then
+  START=$(systemctl show dsh-web -p ExecMainStartTimestamp --value)
+  ok "dsh-web active（启动于 $START）——node_modules 的改动要晚于该时间才算已装载"
+else
+  err "dsh-web 未运行"
 fi
 
-echo "== 2) 信标路由 /dsh-watch（client 看门狗靠它进 journal）"
-C=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 'http://127.0.0.1:3081/dsh-watch?e=verify' || echo 000)
-[ "$C" = 204 ] && ok "HTTP 204" || err "HTTP $C（期望 204）"
+echo "== 2) 探活路由 HTTP 码"
+# 旧 /dsh-health、/dsh-watch 属已卸载的 dsh-web-restart；现役 better-dsh-web-restart
+# 只暴露 /restart-dsh/{status,arm,cancel}（见其 README「HTTP API」表）。
+C=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 'http://127.0.0.1:3081/restart-dsh/status' || echo 000)
+[ "$C" = 200 ] && ok "HTTP 200" || err "HTTP $C（期望 200）"
 
 echo "== 3) dsh-pocket 两处补丁"
 P="$NM/dsh-pocket/lib/index.js"
