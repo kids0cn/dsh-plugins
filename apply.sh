@@ -15,7 +15,7 @@ ok()   { printf '✅ %s\n' "$*"; }
 warn() { printf '⚠️  %s\n' "$*"; }
 err()  { printf '❌ %s\n' "$*"; FAIL=1; }
 
-echo "== 1/4 patches/dsh-pocket-2.10.6"
+echo "== 1/5 patches/dsh-pocket-2.10.6"
 TARGET="$NM/dsh-pocket/lib/index.js"
 PATCH="$HERE/patches/dsh-pocket-2.10.6/dsh-pocket-2.10.6.patch"
 if [ ! -f "$TARGET" ]; then
@@ -32,7 +32,7 @@ else
   fi
 fi
 
-echo "== 2/4 Token 银行铸造 mimo —— 上游 0.4.6 起已合入，只做存活检测"
+echo "== 2/5 Token 银行铸造 mimo —— 上游 0.4.6 起已合入，只做存活检测"
 # 2026-10-11 实测：@linxin666/* 0.4.6 原样采纳了本仓库的两处改动（4 条 usage.bank.* MiMo 文案 +
 # mimo 路由计入铸造），且实现更严谨——上游用 EXTRA_MINT_ROUTE_IDS = ["mimo"] + mintsWhaleYuan()，
 # 并把 mimo 排除在 cost 之外（MiMo 无价目表），比本仓库 0.4.5 补丁（mimo 也进 cost）更好。
@@ -52,7 +52,7 @@ for P in dsh-web-all dsh-usage; do
   fi
 done
 
-echo "== 3/4 files/hooks/tool-budget.sh"
+echo "== 3/5 files/hooks/tool-budget.sh"
 mkdir -p "$HOOK_DIR" 2>/dev/null
 if [ -f "$HOOK_DIR/tool-budget.sh" ] && ! cmp -s "$HERE/files/hooks/tool-budget.sh" "$HOOK_DIR/tool-budget.sh"; then
   cp -p "$HOOK_DIR/tool-budget.sh" "$HOOK_DIR/tool-budget.sh.bak.$(date +%Y%m%d%H%M%S)" && note "旧文件已备份"
@@ -63,7 +63,7 @@ else
   err "hook 安装失败"
 fi
 
-echo "== 4/4 files/profile"
+echo "== 4/5 files/profile"
 if [ "${1:-}" = "--with-profile" ]; then
   PDIR="$DSH_HOME/profiles/$DSH_PROFILE"
   [ -f "$PDIR/cordis.patch.yml" ] && cp -p "$PDIR/cordis.patch.yml" "$PDIR/cordis.patch.yml.bak.$(date +%Y%m%d%H%M%S)"
@@ -73,6 +73,21 @@ else
   note "默认不碰 profile 配置（含本机其它设置）。对比："
   note "  diff $DSH_HOME/profiles/$DSH_PROFILE/cordis.patch.yml $HERE/files/profile/cordis.patch.yml"
   note "要覆盖加参数：./apply.sh --with-profile"
+fi
+
+echo "== 5/5 meow-memory-0.29.0 折叠横条补丁（dsh 0.2.0-rc.2 composer.dock 空 props 适配）"
+TARGET="$NM/meow-memory/lib/client.js"
+PATCH="$HERE/patches/meow-memory-0.29.0/meow-memory-0.29.0.patch"
+if [ ! -f "$TARGET" ]; then
+  warn "meow-memory 未安装，跳过"
+elif grep -q 'foldDockClaim' "$TARGET"; then
+  ok "已打过补丁，跳过"
+else
+  if patch -d "$NM/meow-memory" -p1 --forward --dry-run < "$PATCH" >/dev/null 2>&1; then
+    patch -d "$NM/meow-memory" -p1 --forward < "$PATCH" >/dev/null && ok "补丁已应用（重启 dsh-web 后生效）" || err "patch 执行失败"
+  else
+    err "补丁无法应用（meow-memory 版本可能已变）→ 见 patches/meow-memory-0.29.0/README.md"
+  fi
 fi
 
 echo

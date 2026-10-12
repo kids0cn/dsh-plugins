@@ -1,0 +1,89 @@
+--- a/lib/client.js	2026-10-12 19:43:32.322915795 +0800
++++ b/lib/client.js	2026-10-12 19:43:32.387679379 +0800
+@@ -2651,6 +2651,8 @@
+   }
+ }
+ var chatIdentity = (chat) => chat;
++// [local patch 2026-10-12] 多槽位注册下的单实例仲裁：第一个拿到座位的 dock 实例独占执行 DOM 折叠逻辑
++var foldDockClaim = null;
+ function MemoryFoldDock(props) {
+   const useChat = props?.useChat;
+   const chatViaHook = typeof useChat === "function" ? useChat(chatIdentity) : void 0;
+@@ -2662,6 +2664,13 @@
+   const injGroups = (0, import_react.useMemo)(() => computeInjectionGroups(snapshot), [snapshot]);
+   const dgNotices = (0, import_react.useMemo)(() => computeDelegateNotices(snapshot), [snapshot]);
+   const memTurns = (0, import_react.useMemo)(() => memoryTurnNumbers(snapshot), [snapshot]);
++  const seatRef = (0, import_react.useRef)(null);
++  if (seatRef.current === null) seatRef.current = "meow-fold-" + Math.random().toString(36).slice(2);
++  if (snapshot !== void 0 && foldDockClaim === null) foldDockClaim = seatRef.current;
++  const ownSeat = snapshot !== void 0 && foldDockClaim === seatRef.current;
++  (0, import_react.useEffect)(() => () => {
++    if (foldDockClaim === seatRef.current) foldDockClaim = null;
++  }, []);
+   const toggle = (0, import_react.useCallback)((id) => {
+     setExpanded((prev) => {
+       const next = new Set(prev);
+@@ -2682,16 +2691,18 @@
+     });
+   }, []);
+   (0, import_react.useLayoutEffect)(() => {
++    if (!ownSeat) return;
+     applyFoldState(groups, expanded, toggle, snapshot);
+     applyInjectionFold(injGroups, injExpanded, toggleInj);
+     applyDelegateNotices(dgNotices);
+     applyTurnNavHiding(memTurns);
+-  }, [groups, expanded, toggle, snapshot, injGroups, injExpanded, toggleInj, dgNotices, memTurns]);
+-  const latest = (0, import_react.useRef)({ groups, expanded, toggle, snapshot, injGroups, injExpanded, toggleInj, dgNotices, memTurns });
+-  latest.current = { groups, expanded, toggle, snapshot, injGroups, injExpanded, toggleInj, dgNotices, memTurns };
++  }, [groups, expanded, toggle, snapshot, injGroups, injExpanded, toggleInj, dgNotices, memTurns, ownSeat]);
++  const latest = (0, import_react.useRef)({ groups, expanded, toggle, snapshot, injGroups, injExpanded, toggleInj, dgNotices, memTurns, ownSeat });
++  latest.current = { groups, expanded, toggle, snapshot, injGroups, injExpanded, toggleInj, dgNotices, memTurns, ownSeat };
+   (0, import_react.useEffect)(() => {
+     let timer = 0;
+     const observer = new MutationObserver(() => {
++      if (!latest.current.ownSeat) return;
+       window.clearTimeout(timer);
+       timer = window.setTimeout(() => {
+         applyFoldState(latest.current.groups, latest.current.expanded, latest.current.toggle, latest.current.snapshot);
+@@ -2708,6 +2719,7 @@
+   }, []);
+   (0, import_react.useEffect)(() => {
+     return onUiLocaleChange(() => {
++      if (!latest.current.ownSeat) return;
+       applyFoldState(latest.current.groups, latest.current.expanded, latest.current.toggle, latest.current.snapshot);
+       applyInjectionFold(latest.current.injGroups, latest.current.injExpanded, latest.current.toggleInj);
+       applyDelegateNotices(latest.current.dgNotices);
+@@ -2775,14 +2787,25 @@
+   if (slots === void 0 || typeof slots.inject !== "function") {
+     console.warn("[meow-memory] slots service unavailable; reflection folding disabled");
+   } else {
+-    disposers.push(slots.inject("conversation.composer.dock", () => slots.register(
+-      {
+-        name: "conversation.composer.dock",
+-        id: "meow-memory",
+-        order: 90
+-      },
+-      MemoryFoldDock
+-    )));
++    // [local patch 2026-10-12] dsh 0.2.0-rc.2 的 conversation.composer.dock 渲染点只传空 props
++    // （renderSlot(name, {})），dock 拿不到 useChat/session 座位 → 反思/梦境/注入/委托四套横条静默失效。
++    // 改为多候选槽位注册，配合 MemoryFoldDock 内的单实例仲裁（第一个拿到座位的实例独占）。
++    // 候选均实测/文档为 kind:"list"：session.header.actions（本插件 vanish dock 的 useSessions 实证）、
++    // conversation.input.overlay、conversation.composer.dock（原槽位，现在空 props）。
++    for (const foldSlotName of [
++      "conversation.session.header.actions",
++      "conversation.input.overlay",
++      "conversation.composer.dock"
++    ]) {
++      disposers.push(slots.inject(foldSlotName, () => slots.register(
++        {
++          name: foldSlotName,
++          id: "meow-memory-fold-" + foldSlotName.split(".").pop(),
++          order: 90
++        },
++        MemoryFoldDock
++      )));
++    }
+     const sessions = ctx?.sessions;
+     const refreshSubagents = typeof sessions?.refreshSubagents === "function" ? (id) => sessions.refreshSubagents(id) : void 0;
+     disposers.push(slots.inject("conversation.session.header.actions", () => slots.register(

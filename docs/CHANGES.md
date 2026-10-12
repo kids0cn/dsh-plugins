@@ -144,3 +144,13 @@ npm scope 与仓库作者不同名）。上游 issue：
 - **顺手修的**：`task-start-snapshot.sh capture` 在 Claude 侧从未接线（WIP 快照守卫一直是 no-op）——迁移时在 SessionStart 补上。
 - **命名日志**（用户要求，供统计功能）：事件流 `hook/invoked|result` 的 `handlerId`=脚本名（非序号）+ 文件 `~/.dsh/hooks-stats.jsonl`（含 `plugin/apply` 启动信标）。
 - **验证**：`node --check` 双绿；**装载与运行验证待 `sudo systemctl restart dsh-web` 后做**（已知缺口见插件 README：compact 不重注、`turn/end` payload 形状未实证）。
+
+## meow-memory 折叠横条本地补丁（dsh 0.2.0-rc.2 composer.dock 契约变更，2026-10-12）
+
+- **症状**：反思/梦境/注入/委托四套折叠横条全部不出现；client 其余部分（dream 图标、CSS、`/meow-memory/*` API、slots 注册）全部正常，**Console 无任何报错或 warn**。
+- **根因**：dsh 0.2.0-rc.2 的 `conversation.composer.dock` 渲染点 `renderSlot(name, {})` 只传空对象（该槽位宿主未合并 standard kit）→ dock 拿不到 `useChat`/`session` 座位 → `snapshot = undefined` → 上游 `computeFoldGroups` 首行 `if (snapshot?.chat === void 0) return []` **静默返回空**。
+  上游 CHANGELOG 自证这是同契约的**第三次变更**（`{session:.chat}` → dsh 0.1.5 `{useChat,t}` → 0.2.0-rc.2 `{}`），前两次同样「静默全失效」。
+- **补丁**（`patches/meow-memory-0.29.0/`）：① 多候选槽位注册——追加 `conversation.session.header.actions`（本插件 vanish dock 的 `useSessions` 在此实证可用）与 `conversation.input.overlay`，三个候选槽位均 `kind:"list"` 不会替换出厂组件；② 单实例仲裁（模块级 `foldDockClaim`，无座位实例空转、不清掉有座位实例的锚点、互不打架）；③ `apply.sh` 新增 5/5 步骤（`grep foldDockClaim` 存活检测 + `--forward` 重放）。
+- **诊断方法（可复用）**：(a) 时间线核对（二进制 mtime / systemd `ActiveEnterTimestamp` / journalctl）先排除「构建归因」；(b) 页面探针 `data-meow-memory-anchor`=0 + `[data-chat-flow]`=31 + `data-meow-vanish` 在位 → 收窄到「槽位有/无座位」差异；(c) 已装 `dsh-context` 作对照组（同款 `props.useChat` 写法 + 其槽位参照）。
+- **上游**：已提 [dsh-meow-memory#53](https://github.com/Phant0Meow/dsh-meow-memory/issues/53)；上游修复后删除本补丁（apply.sh 存活检测会转为「重复」提示）。
+- **验证**：`node --check` 绿、`patch --dry-run` 对 pristine 文件绿；**运行时验证待重启 dsh-web + 页面硬刷后跑探针**（`anchor > 0` 即活）。`verify.sh` 尚未加对应检查（下次补）。
