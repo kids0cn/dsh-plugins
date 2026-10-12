@@ -1,29 +1,89 @@
 --- a/lib/client.js	2026-10-12 19:43:32.322915795 +0800
-+++ b/lib/client.js	2026-10-12 19:43:32.387679379 +0800
-@@ -2651,6 +2651,8 @@
++++ b/lib/client.js	2026-10-12 23:33:55.086786737 +0800
+@@ -2651,6 +2651,12 @@
    }
  }
  var chatIdentity = (chat) => chat;
 +// [local patch 2026-10-12] 多槽位注册下的单实例仲裁：第一个拿到座位的 dock 实例独占执行 DOM 折叠逻辑
 +var foldDockClaim = null;
++// [debug probe v2] 分组计数去重信号
++var lastFoldProbeSig = null;
++// [local patch 2026-10-12 v2] 抢座按数据量：空会话 store(0) 让位给有数据的实例（严格更大才换防，防抖动）
++var foldDockClaimScore = -1;
  function MemoryFoldDock(props) {
    const useChat = props?.useChat;
    const chatViaHook = typeof useChat === "function" ? useChat(chatIdentity) : void 0;
-@@ -2662,6 +2664,13 @@
+@@ -2662,6 +2668,69 @@
    const injGroups = (0, import_react.useMemo)(() => computeInjectionGroups(snapshot), [snapshot]);
    const dgNotices = (0, import_react.useMemo)(() => computeDelegateNotices(snapshot), [snapshot]);
    const memTurns = (0, import_react.useMemo)(() => memoryTurnNumbers(snapshot), [snapshot]);
 +  const seatRef = (0, import_react.useRef)(null);
 +  if (seatRef.current === null) seatRef.current = "meow-fold-" + Math.random().toString(36).slice(2);
-+  if (snapshot !== void 0 && foldDockClaim === null) foldDockClaim = seatRef.current;
++  if (snapshot !== void 0) {
++    const score = chatViaHook && chatViaHook.order && typeof chatViaHook.order.length === "number" ? chatViaHook.order.length : -1;
++    if (foldDockClaim === null || (foldDockClaim !== seatRef.current && score > foldDockClaimScore) || (foldDockClaim === seatRef.current && score > foldDockClaimScore)) {
++      foldDockClaim = seatRef.current;
++      foldDockClaimScore = score;
++    }
++  }
 +  const ownSeat = snapshot !== void 0 && foldDockClaim === seatRef.current;
 +  (0, import_react.useEffect)(() => () => {
 +    if (foldDockClaim === seatRef.current) foldDockClaim = null;
 +  }, []);
++  // [debug probe 2026-10-12] 打印座位真值：每个实例一行
++  (0, import_react.useEffect)(() => {
++    try {
++      const chatObj = chatViaHook;
++      console.info("[meow-fold] instance", {
++        propsKeys: Object.keys(props || {}),
++        useChatType: typeof useChat,
++        sessionType: typeof (props && props.session),
++        chatShape: chatObj != null && typeof chatObj === "object" ? Object.keys(chatObj).slice(0, 16) : String(chatObj),
++        hasOrder: !!(chatObj && chatObj.order),
++        nodesKind: chatObj && chatObj.nodes ? chatObj.nodes instanceof Map ? "Map" : typeof chatObj.nodes : "absent",
++        locationsKind: chatObj && chatObj.locations ? typeof chatObj.locations.getTurn : "absent",
++        ownSeat: ownSeat
++      });
++    } catch (e) {
++      console.info("[meow-fold] instance probe failed", String(e));
++    }
++    return void 0;
++  }, []);
++  // [debug probe v2 2026-10-12] 座位激活后：分组计数 + 节点层解剖（kind 直方图/标记命中样本/turnOf）
++  (0, import_react.useEffect)(() => {
++    if (!ownSeat) return;
++    const sig = ownSeat + ":" + groups.length + ":" + injGroups.length + ":" + memTurns.size;
++    if (lastFoldProbeSig === sig) return;
++    lastFoldProbeSig = sig;
++    console.info("[meow-fold] seat active", { sid: String(props && props.sessionId), groups: groups.length, injGroups: injGroups.length, memTurns: memTurns.size });
++    try {
++      const chat = chatViaHook;
++      if (chat && chat.order && chat.nodes && typeof chat.nodes.get === "function") {
++        const kinds = {};
++        const memHits = [];
++        let limit = 0;
++        for (const key of chat.order) {
++          if (limit++ > 4000) break;
++          const node = chat.nodes.get(key);
++          if (node == null) continue;
++          kinds[node.kind] = (kinds[node.kind] || 0) + 1;
++          if (memHits.length < 4 && isMemoryPrompt(node)) {
++            memHits.push({ kind: node.kind, turn: String(turnOf(node)), head: contextText(node).slice(0, 48) });
++          }
++        }
++        console.info("[meow-fold] nodes", { orderLen: chat.order.length, kinds, memHits });
++      } else {
++        console.info("[meow-fold] nodes shape unexpected", { hasOrder: !!(chat && chat.order), nodesGet: !!(chat && chat.nodes && typeof chat.nodes.get === "function") });
++      }
++    } catch (e) {
++      console.info("[meow-fold] nodes probe failed", String(e && e.stack || e));
++    }
++    return void 0;
++  }, [ownSeat, groups, injGroups, memTurns]);
    const toggle = (0, import_react.useCallback)((id) => {
      setExpanded((prev) => {
        const next = new Set(prev);
-@@ -2682,16 +2691,18 @@
+@@ -2682,16 +2751,18 @@
      });
    }, []);
    (0, import_react.useLayoutEffect)(() => {
@@ -45,7 +105,7 @@
        window.clearTimeout(timer);
        timer = window.setTimeout(() => {
          applyFoldState(latest.current.groups, latest.current.expanded, latest.current.toggle, latest.current.snapshot);
-@@ -2708,6 +2719,7 @@
+@@ -2708,6 +2779,7 @@
    }, []);
    (0, import_react.useEffect)(() => {
      return onUiLocaleChange(() => {
@@ -53,7 +113,7 @@
        applyFoldState(latest.current.groups, latest.current.expanded, latest.current.toggle, latest.current.snapshot);
        applyInjectionFold(latest.current.injGroups, latest.current.injExpanded, latest.current.toggleInj);
        applyDelegateNotices(latest.current.dgNotices);
-@@ -2775,14 +2787,25 @@
+@@ -2775,14 +2847,26 @@
    if (slots === void 0 || typeof slots.inject !== "function") {
      console.warn("[meow-memory] slots service unavailable; reflection folding disabled");
    } else {
@@ -84,6 +144,7 @@
 +        MemoryFoldDock
 +      )));
 +    }
++    console.info("[meow-fold] candidates registered", ["conversation.session.header.actions", "conversation.input.overlay", "conversation.composer.dock"]);
      const sessions = ctx?.sessions;
      const refreshSubagents = typeof sessions?.refreshSubagents === "function" ? (id) => sessions.refreshSubagents(id) : void 0;
      disposers.push(slots.inject("conversation.session.header.actions", () => slots.register(

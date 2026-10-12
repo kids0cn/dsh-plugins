@@ -154,3 +154,5 @@ npm scope 与仓库作者不同名）。上游 issue：
 - **诊断方法（可复用）**：(a) 时间线核对（二进制 mtime / systemd `ActiveEnterTimestamp` / journalctl）先排除「构建归因」；(b) 页面探针 `data-meow-memory-anchor`=0 + `[data-chat-flow]`=31 + `data-meow-vanish` 在位 → 收窄到「槽位有/无座位」差异；(c) 已装 `dsh-context` 作对照组（同款 `props.useChat` 写法 + 其槽位参照）。
 - **上游**：已提 [dsh-meow-memory#53](https://github.com/Phant0Meow/dsh-meow-memory/issues/53)；上游修复后删除本补丁（apply.sh 存活检测会转为「重复」提示）。
 - **验证**：`node --check` 绿、`patch --dry-run` 对 pristine 文件绿；**运行时验证待重启 dsh-web + 页面硬刷后跑探针**（`anchor > 0` 即活）。`verify.sh` 尚未加对应检查（下次补）。
+
+**终局补记（同日晚）**：v2 探针实证——标准 props 其实在多槽位**正常投递**（组件收到完整 15 键 kit，`useChat` 为 function，chat 对象含 `order/nodes/locations/navigation/timeline/legacy`，形状与旧版一致）；`composer.dock` 只是「不发」的那一个。真正的坑中坑：三个候选槽位 `scope: session` 分属不同会话，**先到先得的仲裁抢到了空会话 store（orderLen:0）**→ 折叠依然静默。终版修法 = **按订阅数据量抢座**（空 store 让位，严格更大才换防防抖动）→ 折叠复活（2026-10-12 23:4x 用户实测横条出现）。探针 `console.info` 保留在补丁内（低频、带 sessionId，下次契约变更可直接诊断）。
