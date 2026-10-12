@@ -156,3 +156,5 @@ npm scope 与仓库作者不同名）。上游 issue：
 - **验证**：`node --check` 绿、`patch --dry-run` 对 pristine 文件绿；**运行时验证待重启 dsh-web + 页面硬刷后跑探针**（`anchor > 0` 即活）。`verify.sh` 尚未加对应检查（下次补）。
 
 **终局补记（同日晚）**：v2 探针实证——标准 props 其实在多槽位**正常投递**（组件收到完整 15 键 kit，`useChat` 为 function，chat 对象含 `order/nodes/locations/navigation/timeline/legacy`，形状与旧版一致）；`composer.dock` 只是「不发」的那一个。真正的坑中坑：三个候选槽位 `scope: session` 分属不同会话，**先到先得的仲裁抢到了空会话 store（orderLen:0）**→ 折叠依然静默。终版修法 = **按订阅数据量抢座**（空 store 让位，严格更大才换防防抖动）→ 折叠复活（2026-10-12 23:4x 用户实测横条出现）。探针 `console.info` 保留在补丁内（低频、带 sessionId，下次契约变更可直接诊断）。
+
+**补丁 2：turn-trigger 形态适配（2026-10-12 深夜，已验证）**：座位打通后分组仍为 0，探针实证根因是**第二个静默拦截点**——meow 的 `isMemoryPrompt` 只认 `context` 节点，而 dsh 0.2.0 把 agent 注入的反思/dream 任务渲染成 **`turn-trigger` 节点**（"收到执行请求"卡片，`source.kind` 为 agent-message/goal 等）→ 全体失配。修法：`isMemoryPrompt` 同时接受 `turn-trigger`（context 仍要求 meow source；trigger 靠 `[meow-memory-reflect]`/`[meow-memory-dream]` 标记判）+ `contextText` 在 `data.content` 为空时兜底扫描 `data`。**验证**：探针输出 `seat active {groups: 2, memTurns: 2}`、`memHits: Array(2)`、`node samples {turnTrigger: Array(2)}`（修复前恒为 0）。遗留：注入块折叠（injGroups: 0，`context` 节点采样为 0）待查——注入形态可能也变了。
