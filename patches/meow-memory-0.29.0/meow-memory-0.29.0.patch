@@ -1,5 +1,5 @@
 --- a/lib/client.js	2026-10-12 19:43:32.322915795 +0800
-+++ b/lib/client.js	2026-10-12 23:54:18.747333952 +0800
++++ b/lib/client.js	2026-10-13 11:14:34.535951895 +0800
 @@ -621,12 +621,23 @@
    return void 0;
  }
@@ -28,20 +28,52 @@
    const text = contextText(node);
    return text.includes(REFLECT_MARKER) || text.includes(DREAM_MARKER);
  }
-@@ -2651,6 +2662,12 @@
+@@ -2189,16 +2200,23 @@
+         disposeEntry?.();
+       } catch {
+       }
+-      disposeEntry = ctx.slots.register(
+-        {
+-          name: "settings.section",
+-          id: SETTINGS_NS,
+-          order: 35,
+-          label: () => t("settings.title"),
+-          inject: () => ({ scope })
+-        },
+-        MemorySettingsSection
+-      );
++      // [local patch 3 2026-10-12] dsh 0.2.0: settings.section 仅在设置侧栏挂载期间被声明
++      // （declaredBy: sidebar.settings），启动期/语言切换时抢跑注册会抛 "not declared"。
++      // 报错吞掉（延迟注册交给 slots.inject 的可用性路径），不再刷红字。
++      try {
++        disposeEntry = ctx.slots.register(
++          {
++            name: "settings.section",
++            id: SETTINGS_NS,
++            order: 35,
++            label: () => t("settings.title"),
++            inject: () => ({ scope })
++          },
++          MemorySettingsSection
++        );
++      } catch (e) {
++        disposeEntry = null;
++      }
+     };
+     const disposeInjection = ctx.slots.inject("settings.section", registerSection);
+     const unsubscribeLocale = onUiLocaleChange(registerSection);
+@@ -2651,6 +2669,10 @@
    }
  }
  var chatIdentity = (chat) => chat;
 +// [local patch 2026-10-12] 多槽位注册下的单实例仲裁：第一个拿到座位的 dock 实例独占执行 DOM 折叠逻辑
 +var foldDockClaim = null;
-+// [debug probe v2] 分组计数去重信号
-+var lastFoldProbeSig = null;
 +// [local patch 2026-10-12 v2] 抢座按数据量：空会话 store(0) 让位给有数据的实例（严格更大才换防，防抖动）
 +var foldDockClaimScore = -1;
  function MemoryFoldDock(props) {
    const useChat = props?.useChat;
    const chatViaHook = typeof useChat === "function" ? useChat(chatIdentity) : void 0;
-@@ -2662,6 +2679,93 @@
+@@ -2662,6 +2684,19 @@
    const injGroups = (0, import_react.useMemo)(() => computeInjectionGroups(snapshot), [snapshot]);
    const dgNotices = (0, import_react.useMemo)(() => computeDelegateNotices(snapshot), [snapshot]);
    const memTurns = (0, import_react.useMemo)(() => memoryTurnNumbers(snapshot), [snapshot]);
@@ -58,84 +90,10 @@
 +  (0, import_react.useEffect)(() => () => {
 +    if (foldDockClaim === seatRef.current) foldDockClaim = null;
 +  }, []);
-+  // [debug probe 2026-10-12] 打印座位真值：每个实例一行
-+  (0, import_react.useEffect)(() => {
-+    if (window.localStorage.getItem("meow-fold-debug") !== "1") return void 0;
-+    try {
-+      const chatObj = chatViaHook;
-+      console.info("[meow-fold] instance", {
-+        propsKeys: Object.keys(props || {}),
-+        useChatType: typeof useChat,
-+        sessionType: typeof (props && props.session),
-+        chatShape: chatObj != null && typeof chatObj === "object" ? Object.keys(chatObj).slice(0, 16) : String(chatObj),
-+        hasOrder: !!(chatObj && chatObj.order),
-+        nodesKind: chatObj && chatObj.nodes ? chatObj.nodes instanceof Map ? "Map" : typeof chatObj.nodes : "absent",
-+        locationsKind: chatObj && chatObj.locations ? typeof chatObj.locations.getTurn : "absent",
-+        ownSeat: ownSeat
-+      });
-+    } catch (e) {
-+      console.info("[meow-fold] instance probe failed", String(e));
-+    }
-+    return void 0;
-+  }, []);
-+  // [debug probe v2 2026-10-12] 座位激活后：分组计数 + 节点层解剖（kind 直方图/标记命中样本/turnOf）
-+  (0, import_react.useEffect)(() => {
-+    if (window.localStorage.getItem("meow-fold-debug") !== "1") return void 0;
-+    if (!ownSeat) return;
-+    const sig = ownSeat + ":" + groups.length + ":" + injGroups.length + ":" + memTurns.size;
-+    if (lastFoldProbeSig === sig) return;
-+    lastFoldProbeSig = sig;
-+    console.info("[meow-fold] seat active", { sid: String(props && props.sessionId), groups: groups.length, injGroups: injGroups.length, memTurns: memTurns.size });
-+    try {
-+      const chat = chatViaHook;
-+      if (chat && chat.order && chat.nodes && typeof chat.nodes.get === "function") {
-+        const kinds = {};
-+        const memHits = [];
-+        let limit = 0;
-+        for (const key of chat.order) {
-+          if (limit++ > 4000) break;
-+          const node = chat.nodes.get(key);
-+          if (node == null) continue;
-+          kinds[node.kind] = (kinds[node.kind] || 0) + 1;
-+          if (memHits.length < 4 && isMemoryPrompt(node)) {
-+            memHits.push({ kind: node.kind, turn: String(turnOf(node)), head: contextText(node).slice(0, 48) });
-+          }
-+        }
-+        const trigSamples = [];
-+        const ctxSamples = [];
-+        for (const key of chat.order) {
-+          const node = chat.nodes.get(key);
-+          if (node == null) continue;
-+          const bucket = node.kind === "turn-trigger" ? trigSamples : node.kind === "context" ? ctxSamples : null;
-+          if (bucket === null || bucket.length >= 2) continue;
-+          let dataJson = "";
-+          try {
-+            dataJson = JSON.stringify(node.data || {});
-+          } catch (e2) {
-+            dataJson = String(e2);
-+          }
-+          bucket.push({
-+            keys: Object.keys(node.data || {}),
-+            srcKind: node.data && node.data.source ? String(node.data.source.kind) : null,
-+            textLen: blocksToText((node.data && node.data.content) || []).length,
-+            turn: String(turnOf(node)),
-+            head: dataJson.slice(0, 240)
-+          });
-+        }
-+        console.info("[meow-fold] nodes", { orderLen: chat.order.length, kinds, memHits });
-+        console.info("[meow-fold] node samples", { turnTrigger: trigSamples, context: ctxSamples });
-+      } else {
-+        console.info("[meow-fold] nodes shape unexpected", { hasOrder: !!(chat && chat.order), nodesGet: !!(chat && chat.nodes && typeof chat.nodes.get === "function") });
-+      }
-+    } catch (e) {
-+      console.info("[meow-fold] nodes probe failed", String(e && e.stack || e));
-+    }
-+    return void 0;
-+  }, [ownSeat, groups, injGroups, memTurns]);
    const toggle = (0, import_react.useCallback)((id) => {
      setExpanded((prev) => {
        const next = new Set(prev);
-@@ -2682,16 +2786,18 @@
+@@ -2682,16 +2717,18 @@
      });
    }, []);
    (0, import_react.useLayoutEffect)(() => {
@@ -157,7 +115,7 @@
        window.clearTimeout(timer);
        timer = window.setTimeout(() => {
          applyFoldState(latest.current.groups, latest.current.expanded, latest.current.toggle, latest.current.snapshot);
-@@ -2708,6 +2814,7 @@
+@@ -2708,6 +2745,7 @@
    }, []);
    (0, import_react.useEffect)(() => {
      return onUiLocaleChange(() => {
@@ -165,7 +123,7 @@
        applyFoldState(latest.current.groups, latest.current.expanded, latest.current.toggle, latest.current.snapshot);
        applyInjectionFold(latest.current.injGroups, latest.current.injExpanded, latest.current.toggleInj);
        applyDelegateNotices(latest.current.dgNotices);
-@@ -2775,14 +2882,26 @@
+@@ -2775,14 +2813,25 @@
    if (slots === void 0 || typeof slots.inject !== "function") {
      console.warn("[meow-memory] slots service unavailable; reflection folding disabled");
    } else {
@@ -196,7 +154,6 @@
 +        MemoryFoldDock
 +      )));
 +    }
-+    if (window.localStorage.getItem("meow-fold-debug") === "1") console.info("[meow-fold] candidates registered", ["conversation.session.header.actions", "conversation.input.overlay", "conversation.composer.dock"]);
      const sessions = ctx?.sessions;
      const refreshSubagents = typeof sessions?.refreshSubagents === "function" ? (id) => sessions.refreshSubagents(id) : void 0;
      disposers.push(slots.inject("conversation.session.header.actions", () => slots.register(
